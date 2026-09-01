@@ -40,7 +40,7 @@ pip install -r requirements.txt
 1. **担当 Issue の選択 & Assignees 登録**:
    * 実装したいファイルの Issue を選び、右側メニューの **Assignees（担当者）** に自分を設定します。すでに担当者がいるissueは選べません。
 2. **Issue からブランチを作成**:
-   * GitHub の Issue 画面（Development セクションの「Create a branch」等）から作業ブランチを作成し、その中で作業をします。
+   * GitHub の Issue 画面（Development セクションの「Create a branch」等）から作業ブランチを作成し、その中で作業をします。**Branch Sourceはdevを選択してください**
    * branch名は次のように決めます。issueタイトルが
    "[feat] issue名 #番号"
    になっているので、これを使ってブランチ名は
