@@ -89,6 +89,11 @@
       letter-spacing: -0.01em;
     }
 
+    /* Smooth Scrolling */
+    html {
+      scroll-behavior: smooth;
+    }
+
     /* Navbar Styling */
     .app-nav {
       position: fixed;
@@ -184,6 +189,7 @@
       margin-bottom: 0.8em;
       color: var(--heading-color);
       letter-spacing: -0.02em;
+      scroll-margin-top: 70px;
     }
     .markdown-section h2 {
       font-size: 1.45rem;
@@ -194,6 +200,7 @@
       margin-bottom: 0.6em;
       color: var(--heading-color);
       letter-spacing: -0.01em;
+      scroll-margin-top: 70px;
     }
     .markdown-section h3 {
       font-size: 1.2rem;
@@ -201,6 +208,7 @@
       margin-top: 1.4em;
       margin-bottom: 0.5em;
       color: var(--heading-color);
+      scroll-margin-top: 70px;
     }
     .markdown-section h4 {
       font-size: 1.05rem;
@@ -208,6 +216,20 @@
       margin-top: 1.2em;
       margin-bottom: 0.4em;
       color: var(--heading-color);
+      scroll-margin-top: 70px;
+    }
+
+    /* Target highlight on jump */
+    .markdown-section h1:target,
+    .markdown-section h2:target,
+    .markdown-section h3:target,
+    .markdown-section h4:target {
+      animation: highlight-pulse 2s ease-out;
+    }
+
+    @keyframes highlight-pulse {
+      0% { background-color: rgba(37, 99, 235, 0.15); }
+      100% { background-color: transparent; }
     }
 
     /* Inline Code & Code Blocks */
@@ -495,6 +517,18 @@
 
   <!-- Docsify Configuration & Plugins -->
   <script>
+    // GFM スラッグ生成関数（目次の #... アンカーと一致させる）
+    function generateGfmSlug(text) {
+      if (!text) return '';
+      return text
+        .toLowerCase()
+        .trim()
+        .replace(/<[^>]+>/g, '') // タグ除去
+        .replace(/[`~!@#$%^&*()+=|{}\[\]:;"'<>,.?\\/]/g, '') // 記号除去
+        .replace(/\s+/g, '-') // スペースをハイフンに
+        .replace(/-+/g, '-'); // 連続ハイフン統一
+    }
+
     // Mermaid 初期設定
     let currentMermaidTheme = 'default';
     if (localStorage.getItem('docsify-theme') === 'dark' || 
@@ -520,11 +554,11 @@
       loadSidebar: false, // 見出しから自動抽出
       subMaxLevel: 3,
       maxLevel: 4,
-      auto2top: true,
+      auto2top: false, // 目次ジャンプを阻害しないよう制御
       notFoundPage: false,
       themeColor: '#2563eb',
       
-      // Markdown レンダラーで mermaid コードブロックを直接 <div class="mermaid"> に変換
+      // カスタム Markdown レンダラー
       markdown: {
         renderer: {
           code: function(code, lang) {
@@ -532,6 +566,19 @@
               return '<div class="mermaid" id="mermaid-' + (++mermaidIndex) + '">' + code + '</div>';
             }
             return this.origin.code.apply(this, arguments);
+          },
+          heading: function(text, level) {
+            const rawText = text.replace(/<[^>]+>/g, '').trim();
+            const docsifySlug = this.slug(text);
+            const gfmSlug = generateGfmSlug(rawText);
+            
+            // 目次アンカーと Docsify アンカーの両方にヒットするように複数のアンカー要素を埋め込む
+            return `
+              <h${level} id="${docsifySlug}" data-id="${docsifySlug}" data-gfm-id="${gfmSlug}" data-raw-title="${rawText}">
+                <a id="${gfmSlug}" class="gfm-anchor"></a>
+                <a href="#/?id=${docsifySlug}" data-id="${docsifySlug}" class="anchor"><span>${text}</span></a>
+              </h${level}>
+            `;
           }
         }
       },
@@ -599,7 +646,7 @@
           });
 
           hook.doneEach(function() {
-            // Mermaid の実行 (Mermaid v10 API: mermaid.run)
+            // Mermaid の実行
             try {
               if (window.mermaid) {
                 window.mermaid.run({
@@ -624,20 +671,79 @@
   <script src="https://cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
 
-  <!-- Prism Syntax Highlighting Components (Excluding mermaid to prevent conflict) -->
+  <!-- Prism Syntax Highlighting Components -->
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-python.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-markdown.min.js"></script>
 
-  <!-- Theme Toggle & Back to top Logic -->
+  <!-- Smooth TOC & Anchor Link Jump Handler -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      // ページ内リンク（TOC 等の href="#..."）のスマートクリックハンドラー
+      document.addEventListener('click', (e) => {
+        const link = e.target.closest('a');
+        if (!link) return;
+        
+        const rawHref = link.getAttribute('href');
+        if (!rawHref) return;
+
+        // ページ内ハッシュリンクの判定（例: "#11-システム概要--目的" や "#/?id=xxx"）
+        if (rawHref.startsWith('#') && !rawHref.startsWith('#/architecture') && !rawHref.startsWith('#/sakai_api_reference') && !rawHref.startsWith('#/auth_and_session_spec') && !rawHref.startsWith('#/guide')) {
+          let targetAnchor = rawHref.startsWith('#/?id=') ? rawHref.replace('#/?id=', '') : rawHref.replace(/^#/, '');
+          targetAnchor = decodeURIComponent(targetAnchor).trim();
+
+          if (!targetAnchor) return;
+
+          // 1. 直接 ID または GFM ID で探す
+          let targetEl = document.getElementById(targetAnchor) || 
+                         document.querySelector(`[data-gfm-id="${targetAnchor}"]`) ||
+                         document.querySelector(`[data-id="${targetAnchor}"]`) ||
+                         document.querySelector(`a[name="${targetAnchor}"]`);
+
+          // 2. 見つからない場合は柔軟なマッチング（正規化比較・先頭章番号比較）
+          if (!targetEl) {
+            const cleanTarget = targetAnchor.replace(/[^0-9a-zA-Z぀-ゟ゠-ヿ一-鿿]/g, '').toLowerCase();
+            const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+            
+            for (const h of headings) {
+              const hId = (h.getAttribute('data-id') || h.id || '').replace(/[^0-9a-zA-Z぀-ゟ゠-ヿ一-鿿]/g, '').toLowerCase();
+              const hGfm = (h.getAttribute('data-gfm-id') || '').replace(/[^0-9a-zA-Z぀-ゟ゠-ヿ一-鿿]/g, '').toLowerCase();
+              const hRaw = (h.getAttribute('data-raw-title') || h.textContent || '').replace(/[^0-9a-zA-Z぀-ゟ゠-ヿ一-鿿]/g, '').toLowerCase();
+
+              if ((hId && (hId === cleanTarget || hId.includes(cleanTarget) || cleanTarget.includes(hId))) ||
+                  (hGfm && (hGfm === cleanTarget || hGfm.includes(cleanTarget) || cleanTarget.includes(hGfm))) ||
+                  (hRaw && (hRaw === cleanTarget || hRaw.includes(cleanTarget) || cleanTarget.includes(hRaw)))) {
+                targetEl = h;
+                break;
+              }
+            }
+          }
+
+          if (targetEl) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // 親の見出し要素へ
+            const scrollTarget = targetEl.tagName.startsWith('H') ? targetEl : targetEl.closest('h1, h2, h3, h4, h5, h6') || targetEl;
+            
+            scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            // アニメーション効果を付与
+            scrollTarget.style.transition = 'background-color 0.5s ease';
+            scrollTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.12)';
+            setTimeout(() => {
+              scrollTarget.style.backgroundColor = 'transparent';
+            }, 1200);
+          }
+        }
+      }, true);
+
+      // テーマ切り替え
       const themeToggleBtn = document.getElementById('theme-toggle');
       const backToTopBtn = document.getElementById('back-to-top');
 
-      // テーマ初期化
       const savedTheme = localStorage.getItem('docsify-theme') || 
         (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       
@@ -656,7 +762,6 @@
             mermaid.initialize({
               theme: theme === 'dark' ? 'dark' : 'default'
             });
-            // 既存の svg をクリアして再描画したい場合はリロード
             window.location.reload();
           } catch(e) {}
         }
