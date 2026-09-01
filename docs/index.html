@@ -7,6 +7,9 @@
   <meta name="description" content="Sakai-Tasks-MCP アーキテクチャ設計書 & 技術仕様書">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
   
+  <!-- Minimal Clean Favicon (Inline SVG to prevent 404) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text x='50' y='68' font-size='50' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>S</text></svg>">
+  
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -89,7 +92,7 @@
       letter-spacing: -0.01em;
     }
 
-    /* Smooth Scrolling */
+    /* Smooth Scrolling & Anchor Offset */
     html {
       scroll-behavior: smooth;
     }
@@ -517,16 +520,25 @@
 
   <!-- Docsify Configuration & Plugins -->
   <script>
-    // GFM スラッグ生成関数（目次の #... アンカーと一致させる）
-    function generateGfmSlug(text) {
-      if (!text) return '';
-      return text
-        .toLowerCase()
-        .trim()
-        .replace(/<[^>]+>/g, '') // タグ除去
-        .replace(/[`~!@#$%^&*()+=|{}\[\]:;"'<>,.?\\/]/g, '') // 記号除去
-        .replace(/\s+/g, '-') // スペースをハイフンに
-        .replace(/-+/g, '-'); // 連続ハイフン統一
+    // 複数のバリエーションのスラッグを生成（GFM & 記号変換）
+    function getSlugCandidates(rawText) {
+      if (!rawText) return [];
+      const clean = rawText.toLowerCase().trim().replace(/<[^>]+>/g, '');
+      const candidates = new Set();
+      
+      // 1. GFM 形式（記号除去、スペースをハイフンに）
+      const gfm1 = clean.replace(/[`~!@#$%^&*()+=|{}\[\]:;"'<>,.?\\/]/g, '').replace(/\s+/g, '-');
+      if (gfm1) candidates.add(gfm1);
+
+      // 2. 記号をハイフンに変換（& がハイフンになって -- になるパターン）
+      const gfm2 = clean.replace(/[`~!@#$%^&*()+=|{}\[\]:;"'<>,.?\\/]/g, '-').replace(/\s+/g, '-');
+      if (gfm2) candidates.add(gfm2);
+
+      // 3. ドット削除版（"1.1" -> "11"）
+      const gfm3 = clean.replace(/\./g, '').replace(/[`~!@#$%^&*()+=|{}\[\]:;"'<>,?\\/]/g, '').replace(/\s+/g, '-');
+      if (gfm3) candidates.add(gfm3);
+
+      return Array.from(candidates);
     }
 
     // Mermaid 初期設定
@@ -554,7 +566,7 @@
       loadSidebar: false, // 見出しから自動抽出
       subMaxLevel: 3,
       maxLevel: 4,
-      auto2top: false, // 目次ジャンプを阻害しないよう制御
+      auto2top: false,
       notFoundPage: false,
       themeColor: '#2563eb',
       
@@ -568,17 +580,20 @@
             return this.origin.code.apply(this, arguments);
           },
           heading: function(text, level) {
+            // Docsify 標準の heading レンダラーを実行
+            const defaultHtml = this.origin.heading.apply(this, arguments);
             const rawText = text.replace(/<[^>]+>/g, '').trim();
-            const docsifySlug = this.slug(text);
-            const gfmSlug = generateGfmSlug(rawText);
+            const slugs = getSlugCandidates(rawText);
             
-            // 目次アンカーと Docsify アンカーの両方にヒットするように複数のアンカー要素を埋め込む
-            return `
-              <h${level} id="${docsifySlug}" data-id="${docsifySlug}" data-gfm-id="${gfmSlug}" data-raw-title="${rawText}">
-                <a id="${gfmSlug}" class="gfm-anchor"></a>
-                <a href="#/?id=${docsifySlug}" data-id="${docsifySlug}" class="anchor"><span>${text}</span></a>
-              </h${level}>
-            `;
+            // 各スラッグに対するアンカー span を生成
+            const anchorTags = slugs.map(s => `<span id="${s}" class="gfm-anchor" data-gfm-id="${s}" style="position:relative; top:-70px; display:block;"></span>`).join('');
+            
+            // 開始タグの直後にアンカーを挿入
+            const enhancedHtml = defaultHtml.replace(
+              new RegExp(`^(<h${level}[^>]*>)`, 'i'),
+              `$1${anchorTags}`
+            );
+            return enhancedHtml;
           }
         }
       },
@@ -710,7 +725,7 @@
             for (const h of headings) {
               const hId = (h.getAttribute('data-id') || h.id || '').replace(/[^0-9a-zA-Z぀-ゟ゠-ヿ一-鿿]/g, '').toLowerCase();
               const hGfm = (h.getAttribute('data-gfm-id') || '').replace(/[^0-9a-zA-Z぀-ゟ゠-ヿ一-鿿]/g, '').toLowerCase();
-              const hRaw = (h.getAttribute('data-raw-title') || h.textContent || '').replace(/[^0-9a-zA-Z぀-ゟ゠-ヿ一-鿿]/g, '').toLowerCase();
+              const hRaw = (h.textContent || '').replace(/[^0-9a-zA-Z぀-ゟ゠-ヿ一-鿿]/g, '').toLowerCase();
 
               if ((hId && (hId === cleanTarget || hId.includes(cleanTarget) || cleanTarget.includes(hId))) ||
                   (hGfm && (hGfm === cleanTarget || hGfm.includes(cleanTarget) || cleanTarget.includes(hGfm))) ||
