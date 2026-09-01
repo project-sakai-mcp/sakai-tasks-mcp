@@ -9,6 +9,7 @@
 
 開発を始める前に、以下のドキュメントを参照してください。
 
+* **[github pages版ドキュメント](https://sayt25606-rgb.github.io/sakai-tasks-mcp/)**
 * **[全体設計書 (`docs/architecture.md`)](docs/architecture.md)**:
   * システム全体のアーキテクチャ、全共通データモデル（Pydantic）、各モジュール・関数の入出力型定義、および GUI 仕様。長いので全部は読まず、担当するコードの要件を確認するために使います。
 * **[開発者ガイド (`docs/guide.md`)](docs/guide.md)**:
