@@ -1,4 +1,5 @@
-# Sakai-Tasks-MCP
+# 開発方法README
+## Sakai-Tasks-MCP
 
 大学の Sakai LMS から課題・小テスト・お知らせ・講義資料を安全に取得し、Claude Desktop や Cursor 等の AI アシスタントと連携する MCP (Model Context Protocol) サーバーです。
 
@@ -39,7 +40,14 @@ pip install -r requirements.txt
 1. **担当 Issue の選択 & Assignees 登録**:
    * 実装したいファイルの Issue を選び、右側メニューの **Assignees（担当者）** に自分を設定します。すでに担当者がいるissueは選べません。
 2. **Issue からブランチを作成**:
-   * GitHub の Issue 画面（Development セクションの「Create a branch」等）から作業ブランチを作成し、git cloneします。そして、自分が作成した作業ブランチに移動し、その中で作業をします。
+   * GitHub の Issue 画面（Development セクションの「Create a branch」等）から作業ブランチを作成し、その中で作業をします。
+   * branch名は次のように決めます。issueタイトルが
+   "[feat] issue名 #番号"
+   になっているので、これを使ってブランチ名は
+   feat/番号-issue名
+   のようにします。例えば
+   issueタイトルが "[feat] src-server #1" の場合、ブランチ名は次のようになります
+   feat/1-src-server
 3. **仕様の確認 & 実装**:
    * `docs/architecture.md` の **第 1〜3 章**（全体像・共通モデル）と **自分の担当ファイルのセクション** を確認し、コードを実装します。
 4. **Pull Request (PR) の作成**:
