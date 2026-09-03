@@ -108,7 +108,7 @@ flowchart TD
 | **① MCP サーバー層** | `src/server.py` | - FastMCP による stdio JSON-RPC 通信の受付・ルーティング。<br/>- CLI 引数処理、サーバーエントリポイント（`main`）。<br/>- 各ツールの入出力ハンドリングとポリシーフィルタ呼び出し。 |
 | **② ポリシー・フィルタ層** | `src/policy/policy_filter.py` | - 講義ごとの AI 利用権限（`ALLOW_ALL`, `TEXT_ONLY`, `SCHEDULE_ONLY`, `BLOCKED`）に応じたデータマスキング・除外純粋関数群。<br/>- ファイルダウンロード可否のバリデーション。 |
 | **③ API クライアント層** | `src/client/sakai_client.py`<br/>`src/client/parsers/` | - Sakai Direct REST API および `/portal` HTML の非同期 HTTP 通信（`httpx`）。<br/>- 各種レスポンスを共通 Pydantic モデルへ変換・正規化するパーサー群。 |
-| **④ 認証・セッション層** | `src/auth/session_manager.py`<br/>`src/auth/webview_auth.py`<br/>`src/auth/cookie_storage.py` | - `JSESSIONID` のローカル暗号化保存（Windows DPAPI）・読込。<br/>- `/session/current.json` によるセッション有効性判定（`userEid` 検査）。<br/>- `pywebview`（Edge WebView2）による自動素通り / 手動 SSO 認証ポップアップ。 |
+| **④ 認証・セッション層** | `src/auth/session_manager.py`<br/>`src/auth/webview_auth.py`<br/>`src/auth/cookie_storage.py` | - `Fernet` + `keyring` による Cookie の暗号化保存・読込。<br/>- `/session/current.json` によるセッション有効性判定（`userEid` 検査）。<br/>- `pywebview`（Edge WebView2）による自動素通り / 手動 SSO 認証ポップアップ。 |
 | **⑤ 設定 & GUI 層** | `src/config.py`<br/>`src/gui/` | - `config.json` の管理・実行中同期（`platformdirs`）。<br/>- 設定画面（`settings_window.py`）用のデータ構築（`data_builder.py`）および JS ブリッジ（`api.py`）。 |
 | **⑥ 共通データモデル層** | `src/models.py` | - システム全体で共通利用される型安全な Pydantic データモデル定義（`SakaiTask`, `CourseSite`, `Announcement` 等）。 |
 
@@ -170,7 +170,7 @@ sequenceDiagram
     Sakai-->>Webview: 認証完了 & 新規 JSESSIONID 発行
     Note over Webview: Cookie 抽出後、即座にウィンドウを破棄 (0.5秒)
     Webview-->>Auth: 新規 Cookies
-    Auth->>Storage: save_cookies(new_cookies) (暗号化保存)
+    Auth->>Storage: save_all_cookies(new_cookies) (暗号化保存)
     Auth-->>Client: 有効な Cookie を返却して通信再開
 ```
 
@@ -192,17 +192,17 @@ sequenceDiagram
     participant Disk as Config (config.json)
 
     AI->>Server: open_settings() または CLI --settings
-    Server->>Builder: build_settings_ui_data()
-    Builder->>Client: get_courses() (事前全講義取得 & 必要時ログイン)
+    Server->>GUI: show_settings_window() (別プロセス起動)
+    Note over GUI: 単一 WebView ウィンドウで起動 (必要に応じて同画面でログイン)
+    GUI->>Builder: build_settings_ui_data()
+    Builder->>Client: get_courses(favorites_only=False)
     Client-->>Builder: 全講義一覧 (お気に入り情報含む)
     Builder->>Disk: Config.load()
-    Builder-->>Server: 統合済み SettingsUIData (JSON)
-    
-    Server->>GUI: show_settings_window(ui_data)
-    Note over GUI: 開いた瞬間に全講義マトリクス表を完全描画
+    Builder-->>GUI: 統合済み SettingsUIData (JSON)
+    Note over GUI: 講義マトリクス表を完全描画
     User->>GUI: ポリシー変更 → 「保存」クリック
     GUI->>Disk: Config.save() (即時同期) & ウィンドウ破棄
-    Server-->>AI: "設定画面を閉じました。最新設定が反映されました。"
+    Server-->>AI: "設定画面を開きました。設定保存後は自動的に親サーバーに反映されます。"
 ```
 
 ---
@@ -258,7 +258,7 @@ sakai-tasks-mcp/
 │   │   └── policy_filter.py              # マスキング・除外純粋関数群 (filter_tasks 等)
 │   ├── gui/                              # 【GUI担当】ユーザー設定用デスクトップ画面 (pywebview)
 │   │   ├── __init__.py                   # show_settings_window 等の export
-│   │   ├── settings_window.py            # pywebview ウィンドウ起動制御 (薄いエントリポイント)
+│   │   ├── settings_window.py            # pywebview ウィンドウ起動制御 (単一ウィンドウ)
 │   │   ├── data_builder.py               # Sakai 講義取得 + Config マージ (SettingsUIData 構築)
 │   │   ├── api.py                        # JS ↔ Python 連携ブリッジ (SettingsApi: 保存・返却)
 │   │   └── templates/                    # 設定画面用 HTML/CSS/JS アセット
@@ -267,10 +267,11 @@ sakai-tasks-mcp/
 │   └── server.py                         # 【MCP担当】FastMCP サーバー定義・ツール公開
 ├── tests/
 │   ├── test_models.py                    # Pydantic モデルのバリデーションテスト
+│   ├── test_policy_filter.py             # ポリシー別マスキング・除外ルールの単体テスト
 │   ├── test_parsers.py                   # 各 API レスポンスのパース単体テスト
-│   ├── test_auth.py                      # 認証・セッション判定テスト
-│   ├── test_client.py                    # API クライアント通信テスト (モック使用)
-│   └── test_settings.py                  # 設定ファイル・講義ポリシー管理テスト
+│   ├── test_gui_data_builder.py          # GUI データマージ・ソートの単体テスト
+│   ├── test_cookie_storage.py            # Cookie 暗号化・復元の単体テスト
+│   └── test_server.py                    # MCP サーバー結合テスト (stdio 経由)
 ├── scripts/                              # 【配布・ビルド担当】パッケージング＆ランチャー
 │   ├── build_windows.py                  # Windows 用 Embeddable Python パッケージ作成
 │   ├── build_macos.py                    # macOS 用 python-build-standalone パッケージ作成
@@ -413,6 +414,12 @@ class TaskStatus(str, Enum):
     OPEN = "open"              # 受付中 (未提出)
     SUBMITTED = "submitted"    # 提出済み
     CLOSED = "closed"          # 締切終了
+
+
+class MaterialType(str, Enum):
+    """授業資料アイテム種別"""
+    FILE = "file"              # ダウンロード可能なファイル
+    FOLDER = "folder"          # フォルダ (コレクション)
 ```
 
 ---
@@ -422,7 +429,6 @@ class TaskStatus(str, Enum):
 ```python
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
-from src.models import TaskType, TaskStatus
 
 
 class BaseModelConfig(BaseModel):
@@ -439,7 +445,7 @@ class Attachment(BaseModelConfig):
     """課題やお知らせに添付されたファイル情報"""
     id: str = Field(description="添付ファイル ID")
     name: str = Field(description="ファイル名 (拡張子含む)")
-    url: str = Field(description="ダウンロード用 URL (Cookie 認証必須)")
+    url: str | None = Field(default=None, description="ダウンロード用 URL (TEXT_ONLY / SCHEDULE_ONLY 時は None にマスク)")
     size_bytes: int | None = Field(default=None, description="ファイルサイズ (バイト単位)")
     content_type: str | None = Field(default=None, description="MIME タイプ (例: application/pdf)")
 
@@ -509,6 +515,7 @@ class CourseMaterial(BaseModelConfig):
     """講義サイト内の授業資料・配布ファイル・フォルダ情報"""
     id: str = Field(description="リソース ID (相対パス形式 /group/site_id/...)")
     name: str = Field(description="ファイル名またはフォルダ名")
+    material_type: MaterialType = Field(default=MaterialType.FILE, description="資料種別 (file / folder)")
     is_collection: bool = Field(default=False, description="フォルダ (コレクション) であるか")
     url: str | None = Field(default=None, description="ダウンロード URL (Cookie 認証必須)")
     size_bytes: int | None = Field(default=None, description="ファイルサイズ (バイト単位)")
@@ -588,6 +595,8 @@ import time
 from src.config import Config
 from src.auth import cookie_storage, session_checker, webview_auth
 
+SESSION_CACHE_TTL: float = 300.0  # インメモリキャッシュ有効期間 (5分間)
+
 _auth_lock = asyncio.Lock()
 _cached_sakai_cookies: dict[str, str] | None = None
 _last_auth_success_time: float = 0.0
@@ -601,10 +610,11 @@ async def get_valid_cookies(
 ) -> dict[str, str]:
     """
     有効な Sakai Cookie 辞書を取得する。
-    排他制御とタイムスタンプ判定により、並行リクエスト時の API 多重送信と WebView 重複起動を防止する。
+    Fast Path キャッシュ判定と Double-Checked Locking により、並行リクエスト時の多重通信と WebView 重複起動を防止する。
 
     Args:
         force_refresh: キャッシュを無視して強制的に再ログインを行うか
+        host: Sakai ホスト名 (デフォルト: Config.SAKAI_HOST)
 
     Returns:
         dict[str, str]: 有効な Cookie 辞書 (例: {"SAKAI2SESSIONID": "..."})
@@ -614,42 +624,51 @@ async def get_valid_cookies(
     """
     global _cached_sakai_cookies, _last_auth_success_time, _last_auth_error_time
 
-    entry_time = time.monotonic()
+    # 1. ロック外判定 (Fast Path):
+    #    通常時、キャッシュが有効期間内 (SESSION_CACHE_TTL) ならロック待機なしで即返却 (0ms)
+    if not force_refresh and _cached_sakai_cookies:
+        if time.monotonic() - _last_auth_success_time < SESSION_CACHE_TTL:
+            return _cached_sakai_cookies
 
+    # 2. 排他ロック取得
     async with _auth_lock:
         now = time.monotonic()
 
-        # 1. 失敗直後のクールダウン判定 (キャンセル時の画面連打防止)
+        # 失敗直後のクールダウン判定 (キャンセル時の画面連打防止)
         if now - _last_auth_error_time < _AUTH_COOLDOWN_SECONDS:
             raise RuntimeError("直前のログイン認証がキャンセルまたは失敗したため、クールダウン中です。")
 
-        # 2. 先行タスク完了判定 (二重チェック): 待機中に先行タスクが検証/更新を終えていれば即返却
-        if _last_auth_success_time > entry_time and _cached_sakai_cookies:
-            return _cached_sakai_cookies
+        # ダブルチェック (先行タスクが待機中に検証・更新を完了したか？)
+        if not force_refresh and _cached_sakai_cookies:
+            if now - _last_auth_success_time < SESSION_CACHE_TTL:
+                return _cached_sakai_cookies
 
         # 3. 通常時: 保存済み Cookie の検証 (先行タスクのみが 1 回実行)
         if not force_refresh:
-            cookies = cookie_storage.load_sakai_cookies()
-            if cookies and await session_checker.is_session_valid(cookies):
+            cookies = cookie_storage.load_sakai_cookies(host=host)
+            if cookies and await session_checker.is_session_valid(cookies, host=host):
                 _cached_sakai_cookies = cookies
                 _last_auth_success_time = time.monotonic()
                 return cookies
 
-        # 4. セッション切れ / 初回 / force_refresh 時: WebView による再認証 (先行タスクのみが 1 回実行)
-        initial_all_cookies = cookie_storage.load_all_cookies()
-        new_all_cookies = await asyncio.to_thread(
-            webview_auth.authenticate_via_webview,
-            initial_cookies=initial_all_cookies
+        # 4. セッション切れ / 初回 / force_refresh 時: 別プロセスとして WebView ログインを実行 (先行タスクのみが 1 回実行)
+        # OS の GUI メインスレッド制約を遵守し、MCP stdio 通信ループを保護するため別プロセスとして起動
+        import sys
+        cmd = [sys.executable, sys.argv[0], "--login", "--host", host]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
         )
+        returncode = await proc.wait()
 
-        # 認証キャンセルまたは失敗時
-        if not new_all_cookies:
+        # 認証キャンセルまたは失敗時 (戻り値 != 0)
+        if returncode != 0:
             _last_auth_error_time = time.monotonic()
             raise RuntimeError("ログインウィンドウが閉じられたか、認証に失敗しました。")
 
-        # 新 Cookie の保存とキャッシュ更新
-        cookie_storage.save_all_cookies(new_all_cookies)
-        cookies = cookie_storage.load_sakai_cookies()
+        # 別プロセスが暗号化保存した新 Cookie の読込とキャッシュ更新
+        cookies = cookie_storage.load_sakai_cookies(host=host)
         if not cookies:
             _last_auth_error_time = time.monotonic()
             raise RuntimeError("Sakai のセッション Cookie を取得できませんでした。")
@@ -670,44 +689,47 @@ async def refresh_session() -> dict[str, str]:
 
 ```mermaid
 flowchart TD
-    Start["get_valid_cookies(force_refresh)"] --> RecordTime["entry_time = time.monotonic() 記録"]
-    RecordTime --> AcquireLock["排他ロック取得<br/>(async with _auth_lock)"]
+    Start["get_valid_cookies(force_refresh)"] --> CheckFastPath{"1. ロック外 Fast Path 判定<br/>(not force_refresh && now - last_success < 300s?)"}
+    CheckFastPath -- "YES (TTL内)" --> ReturnFast["メモリキャッシュを即返却<br/>(ロック待機なし / 0ms)"]
+    
+    CheckFastPath -- "NO" --> AcquireLock["排他ロック取得<br/>(async with _auth_lock)"]
 
     subgraph LockProtected ["排他制御セクション"]
-        AcquireLock --> CheckCooldown{"1. 直前の失敗クールダウン中？<br/>(now - _last_auth_error_time < 3.0s)"}
-        CheckCooldown -- "YES (キャンセル直後)" --> ErrorCooldown["RuntimeError を即送出<br/>(画面の連打を防止)"]
+        AcquireLock --> CheckCooldown{"2. 直前の失敗クールダウン中？<br/>(now - _last_auth_error_time < 3.0s)"}
+        CheckCooldown -- "YES (キャンセル直後)" --> ErrorCooldown["RuntimeError を即送出<br/>(画面連打防止)"]
 
-        CheckCooldown -- "NO" --> CheckPreceding{"2. 先行タスクが完了済み？<br/>(_last_auth_success_time > entry_time)"}
-        CheckPreceding -- "YES (待機中に完了)" --> ReturnCached["メモリ上の _cached_sakai_cookies を<br/>即返却 (通信0回 / 0秒)"]
+        CheckCooldown -- "NO" --> CheckDoubleCheck{"3. ダブルチェック<br/>(待機中に先行タスクが更新済み？)"}
+        CheckDoubleCheck -- "YES" --> ReturnCached["メモリ上の _cached_sakai_cookies を<br/>即返却 (通信0回)"]
 
-        CheckPreceding -- "NO (先行タスク)" --> IsForce{"3. force_refresh == True ?"}
+        CheckDoubleCheck -- "NO" --> IsForce{"4. force_refresh == True ?"}
 
         IsForce -- "False" --> LoadLocal["cookie_storage.load_sakai_cookies()"]
-        LoadLocal --> CheckAPI{"4. is_session_valid(cookies)<br/>(API確認通信: 1回のみ)"}
+        LoadLocal --> CheckAPI{"5. is_session_valid(cookies)<br/>(API確認通信: 1回のみ)"}
 
         CheckAPI -- "YES (有効)" --> UpdateSuccess["_last_auth_success_time = now 更新<br/>_cached_sakai_cookies 保存"]
         UpdateSuccess --> ReturnValid["検証済み Cookie を返却"]
 
-        IsForce -- "True" --> LoadAllSaved["load_all_cookies() (全Cookie読込)"]
-        CheckAPI -- "NO (なし/失効)" --> LoadAllSaved
+        IsForce -- "True" --> RunSubproc
+        CheckAPI -- "NO (なし/失効)" --> RunSubproc
 
-        LoadAllSaved --> RunWV["5. authenticate_via_webview(initial_cookies)<br/>(asyncio.to_thread)"]
-        RunWV --> CheckWVResult{"Cookie 取得成功？"}
+        RunSubproc["6. 別プロセス起動 (--login)<br/>(asyncio.create_subprocess_exec)"] --> CheckResult{"プロセス終了ステータス == 0？"}
 
-        CheckWVResult -- "成功" --> SaveAll["save_all_cookies(new_cookies)<br/>_cached_sakai_cookies 更新<br/>_last_auth_success_time = now"]
-        SaveAll --> ReturnNew["新しい Sakai Cookie を返却"]
+        CheckResult -- "成功 (0)" --> ReloadSaved["cookie_storage.load_sakai_cookies()<br/>_cached_sakai_cookies 更新<br/>_last_auth_success_time = now"]
+        ReloadSaved --> ReturnNew["新しい Sakai Cookie を返却"]
 
-        CheckWVResult -- "失敗 / 中断" --> SetErrTime["_last_auth_error_time = now 記録"]
+        CheckResult -- "失敗 / 中断 (!= 0)" --> SetErrTime["_last_auth_error_time = now 記録"]
         SetErrTime --> ErrorFail["RuntimeError を送出 (認証失敗)"]
     end
 ```
 
 ##### 実装上の重要ルール
-1. **タイムスタンプ比較による二重チェック最適化**:
-   * 関数進入時刻（`entry_time`）と直近の認証・検証成功時刻（`_last_auth_success_time`）を比較する。
-   * ロック待ちしていた後続タスクは、`_last_auth_success_time > entry_time`（自分が待機している間に先行タスクが検証/更新を完了した）を検知すると、API 通信やディスク I/O を一切行わず、メモリキャッシュ（`_cached_sakai_cookies`）を 0 秒で即返却する。
-2. **同期 GUI 処理の非同期化 (`asyncio.to_thread`)**:
-   * `webview_auth.authenticate_via_webview()` は WebView ウィンドウを起動してユーザー入力を待機する同期ブロッキング処理のため、必ず `await asyncio.to_thread(authenticate_via_webview, ...)` を用いてバックグラウンドスレッドで実行し、イベントループをブロックさせない。
+1. **Fast Path ＋ Double-Checked Locking 最適化**:
+   * 通常時はロックを取得せずに 5 分間（`SESSION_CACHE_TTL`）のインメモリキャッシュを即座に返却（0ms）し、不要な API 通信とロック競合を完全に排除する。
+   * ロック取得後も再度 TTL 判定を行うことで、先行タスクが検証・更新を完了していれば待機していた後続タスクは追加通信なしで即座に最新 Cookie を取得する。
+   * `force_refresh=True` 指定時はキャッシュを迂回し、確実に再認証フローを実行する。
+2. **別プロセス起動による OS メインスレッド制約の遵守**:
+   * WebView ウィンドウの起動（`webview.start()`）は、OS（Windows / macOS）の厳格なウィンドウシステム制約により「プロセスのメインスレッド」でしか実行できません。
+   * ワーカースレッド（`asyncio.to_thread`）からの起動によるクラッシュや、MCP サーバーのメイン asyncio イベントループ（stdio 通信）のフリーズを防ぐため、認証 GUI は必ず `asyncio.create_subprocess_exec(sys.executable, sys.argv[0], "--login", ...)` により **完全に独立した別プロセスのメインスレッド** で実行します。
 3. **認証キャンセル・失敗時の連鎖起動防止（クールダウン制御）**:
    * ユーザーがログインウィンドウを「×」で閉じるなどして認証がキャンセルされた場合、`RuntimeError` を送出するとともに `_last_auth_error_time = now` を記録する。
    * 待機中タスクはロック取得直後にクールダウン（3.0 秒以内）を検知して WebView を開かずに即座に同一の例外で終了し、画面の連打起動を防止する。
@@ -740,6 +762,22 @@ async def is_session_valid(
     Returns:
         bool: userEid が文字列として存在すれば True、null や通信エラー・タイムアウト時は False
     """
+    info = await get_session_info(cookies, host=host, timeout=timeout)
+    return info is not None
+
+
+async def get_session_info(
+    cookies: dict[str, str],
+    host: str = Config.SAKAI_HOST,
+    timeout: float = Config.SESSION_CHECK_TIMEOUT
+) -> dict[str, Any] | None:
+    """
+    Sakai の /direct/session/current.json にアクセスし、有効なセッション情報辞書を返却する。
+    MCP ツール check_auth_status 等で利用される。
+
+    Returns:
+        dict[str, Any] | None: userEid を含むセッション辞書。未ログイン・エラー時は None。
+    """
     ...
 ```
 
@@ -747,7 +785,7 @@ async def is_session_valid(
 1. **未認証時の判定基準**:
    * Sakai は未ログイン時でも `HTTP 200 OK` で `{"userEid": null}` を返すため、必ずレスポンス JSON の `data.get("userEid") is not None` で判定する。
 2. **エラーハンドリング & タイムアウト**:
-   * ネットワーク切断やタイムアウト（`Config.SESSION_CHECK_TIMEOUT` 秒）発生時は、例外で落とさずに安全に `False` を返す。
+   * ネットワーク切断やタイムアウト（`Config.SESSION_CHECK_TIMEOUT` 秒）発生時は、例外で落とさずに安全に `False` / `None` を返す。
 
 #### 4.1.4 Cookie ストレージ管理 (`src/auth/cookie_storage.py`)
 
@@ -887,45 +925,78 @@ def authenticate_via_webview(
 ```
 
 ##### 詳細な処理フロー & ライフサイクル
-1. **非表示ウィンドウの生成 & Cookie 注入**:
-   * `initial_cookies`（前回保存された Microsoft / Shibboleth / Sakai の全 Cookie）が存在する場合、起動直後に WebView の `CookieManager` に一括注入。
+1. **非表示ウィンドウの生成 & 永続プロファイルの指定**:
+   * `initial_cookies`（前回保存された全 Cookie）が存在する場合、起動直後に WebView の `CookieManager` に一括注入。
+   * `storage_path=str(profile_dir)`（永続プロファイル）を指定し、一度ログインに成功すれば Microsoft 等の「サインイン状態を維持」Cookie がディスクに保持されるようにする。
    * `https://<host>/portal/login` を読み込むウィンドウを非表示（`hidden=True`、サイズ `Config.WEBVIEW_WINDOW_WIDTH` × `Config.WEBVIEW_WINDOW_HEIGHT`）で起動。
 2. **ワーカースレッド監視ループ (`webview.start(watch_loop, window)`)**:
-   * `pywebview.start()` の第1引数に監視関数を渡し、GUI スレッドをブロックせずにバックグラウンドのワーカースレッドで 100ms 周期（`time.sleep(0.1)`）の監視ループを実行。
-3. **単一ループによる 2 段階のシームレスな表示制御**:
-   * **完了判定条件**:
-     * URL が `https://<host>/portal` で始まり `/login` でないこと、**かつ Cookie 内に値を持つ `SAKAI2SESSIONID`（あるいは `JSESSIONID`）が存在すること**。
-   * **最初の `Config.WEBVIEW_AUTO_TIMEOUT` 秒間（パターン A: 高速自動素通り）**:
-     * 注入された Cookie により 0.5 秒程度で認証完了判定を満たした瞬間に、全 Cookie を抽出して `window.destroy()`（画面は一切表示されない）。
-   * **`Config.WEBVIEW_AUTO_TIMEOUT` 秒経過後（パターン B: 手動ログイン要求）**:
-     * 完了していなければ `window.show()` を 1 回だけ呼び出して画面を前面に表示。
-     * 同じ監視ループを継続し、ユーザーが手動で認証完了した瞬間に全 Cookie を抽出して `window.destroy()`。
-4. **全ドメイン Cookie 抽出 (`window.get_cookies`)**:
-   * `window.get_cookies()` を呼び出し、特定のドメインで絞り込まずに **全ドメインの Cookie リストをそのまま取得して返却** する（ドメイン抽出は `cookie_storage.py` の責務）。
-5. **ユーザーによる中断ハンドリング**:
+   * `pywebview.start()` の第1引数に監視関数を渡し、GUI スレッドをブロックせずにバックグラウンドのワーカースレッドで 200ms 周期（`time.sleep(0.2)`）の監視ループを実行。
+3. **URL 監視による 100% ログイン完了判定**:
+   * **API ポーリングや DOM 解析は一切行わない（通信 0 回、HTML 構造非依存）**。
+   * ログイン成功時は、大学の SSO 構成（Microsoft 365, Google, オンプレ Shibboleth 等）を問わず、Sakai 本体の仕様により **100% 確実に `https://<host>/portal`（または `/portal/site/...` 等の配下）へ着地** する。
+   * したがって、完了判定条件は `url.startswith(f"https://{host}/portal") and not url.startswith(f"https://{host}/portal/login")` のみとする（未ログイン時の仮 Cookie 発行による誤判定を根絶）。
+4. **★手動ログイン 5 分超過時の Shibboleth / 外部 IdP タイムアウト自動救済**:
+   * 手動ログイン（スマホでの 2 要素認証など）に 5 分以上かかった場合、Microsoft 等の認証自体は成功してブラウザ内に認証 Cookie が保存されるが、前段の Shibboleth IdP のトランザクション制限（標準 300 秒 = 5 分）切れにより `HTTP 500 (Stale Request)` エラー画面で停止する。
+   * 外部 IdP ドメインにおいて `/POST/SSO` や `Stale Request` で停止したことを検知した場合、**1 回だけ自動で `window.load_url(f"https://{host}/portal/login")` を実行** する。
+   * ブラウザ内にはすでに有効な IdP 認証 Cookie があるため、2 度目はパスワード・MFA 入力を全スキップして一瞬（0.5 秒）で Sakai `/portal` まで突き抜け、自動で Cookie を保存してウィンドウを破棄する。
+5. **単一ループによる表示切り替え**:
+   * **最初の `auto_timeout_seconds` 秒間（パターン A: 高速自動素通り）**:
+     * Cookie が有効であれば非表示のまま 0.5〜1 秒で `/portal` に着地し、画面を一切表示（チラつき）させずにウィンドウを即破棄。
+   * **`auto_timeout_seconds` 秒経過後（パターン B: 手動ログイン要求）**:
+     * 自動素通りできなかった場合は `window.show()` で画面を前面表示し、ユーザーの手動入力を受け付ける。
+6. **全ドメイン Cookie 抽出 (`window.get_cookies`)**:
+   * ログイン完了時に `window.get_cookies()` を呼び出し、特定のドメインで絞り込まずに **全ドメインの Cookie リストをそのまま取得して返却** する（ドメイン抽出は `cookie_storage.py` の責務）。
+7. **ユーザーによる中断ハンドリング**:
    * ユーザーがログインを完了せずにウィンドウの「×」ボタンを押した場合は、空リスト `[]` を返却する。
-6. **同期実行とスレッド配慮**:
-   * `session_manager.py` 側からは `asyncio.to_thread(authenticate_via_webview, ...)` 経由で呼び出す。
+8. **別プロセスのメインスレッドでの実行**:
+   * OS の GUI メインスレッド制約を遵守し、MCP stdio 通信をフリーズさせないため、`session_manager.py` から `python server.py --login --host <host>` 経由で **独立したプロセスのメインスレッド** で呼び出されます。認証成功時は直ちに `cookie_storage.save_all_cookies()` で暗号化保存してステータスコード 0 で終了し、ユーザー中断・タイムアウト時は非 0 で終了します。
 
 ##### 内部実装構造イメージ
 
 ```python
+import time
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
+import webview
+from src.config import Config
+
+
 def authenticate_via_webview(
     host: str = Config.SAKAI_HOST,
     profile_dir: Path = Config.WEBVIEW_DATA_DIR,
     initial_cookies: list[dict[str, Any]] | None = None,
     auto_timeout_seconds: float = Config.WEBVIEW_AUTO_TIMEOUT
 ) -> list[dict[str, Any]]:
+    """
+    WebView を起動して Sakai ログインを実行し、全ドメインの Cookie リストを抽出して返す。
+    - API ポーリング: なし (0回 / 大学サーバー保護)
+    - DOM スクレイピング: なし (HTML構造に依存しない)
+    - 判定方法: URL が /portal に戻ったかのみを監視
+    - 自動救済: 5分超過による Shibboleth Stale Request (500) 発生時の一度きりの自動リロード
+
+    Args:
+        host: Sakai ホスト名 (デフォルト: Config.SAKAI_HOST)
+        profile_dir: WebView2 永続プロファイル保存ディレクトリ (デフォルト: Config.WEBVIEW_DATA_DIR)
+        initial_cookies: 起動時に WebView へ注入する保存済み Cookie リスト
+        auto_timeout_seconds: 自動素通りの判定猶予秒数 (デフォルト: Config.WEBVIEW_AUTO_TIMEOUT)
+
+    Returns:
+        list[dict[str, Any]]: 全ドメインの Cookie 辞書リスト。中断・失敗時は []
+    """
     cookies_result: list[dict[str, Any]] = []
 
-    def is_login_completed(window) -> bool:
-        url = window.get_current_url() or ""
-        # 1. URL が /portal に戻ったか
-        if url.startswith(f"https://{host}/portal") and not url.endswith("/login"):
-            return True
-        # 2. または SAKAI2SESSIONID / JSESSIONID が発行されたか
-        for c in window.get_cookies():
-            if c.key in ("SAKAI2SESSIONID", "JSESSIONID") and c.value:
+    def is_login_success(url: str) -> bool:
+        # 全大学共通: ログイン成功時は必ず Sakai の /portal (またはその配下) に着地する
+        # /portal/login の初期画面は除外
+        return url.startswith(f"https://{host}/portal") and not url.startswith(f"https://{host}/portal/login")
+
+    def is_stale_or_idp_error(url: str, title: str) -> bool:
+        # 外部 IdP (Shibboleth等) でタイムアウトや Stale Request が発生して停止した状態を汎用検知
+        netloc = urlparse(url).netloc
+        if netloc and netloc != host:
+            # Shibboleth 標準の SAML POST 完了待受パス (/POST/SSO) またはエラー画面
+            if "/POST/SSO" in url or "Stale Request" in title or "エラー" in title:
                 return True
         return False
 
@@ -933,23 +1004,36 @@ def authenticate_via_webview(
         nonlocal cookies_result
         elapsed = 0.0
         shown = False
+        retried_stale = False  # タイムアウト自動救済の一度きり実行フラグ (無限ループ防止)
 
         while True:
-            time.sleep(0.1)  # ワーカースレッドなので GUI は一切フリーズしない
-            elapsed += 0.1
+            time.sleep(0.2)  # 200ms 周期で URL・タイトルのみ確認 (負荷 0)
+            elapsed += 0.2
 
-            # 1. 完了判定チェック
-            if is_login_completed(window):
+            url = window.get_current_url() or ""
+            title = window.evaluate_js("document.title") or ""
+
+            # 1. ログイン完了検知 (/portal に着地した瞬間)
+            if is_login_success(url):
                 cookies_result = window.get_cookies()
                 window.destroy()
                 return
 
-            # 2. 自動素通り猶予時間を過ぎたら画面を表示
+            # 2. 外部 IdP でのタイムアウトエラー等の自動救済 (1回のみリロード)
+            #    手動ログインに5分以上かかった場合、IdP側のCookieは書き込み完了しているため、
+            #    再度 /portal/login に入れば0.5秒で一瞬で自動素通りできる
+            if not retried_stale and is_stale_or_idp_error(url, title):
+                retried_stale = True
+                time.sleep(0.5)
+                window.load_url(f"https://{host}/portal/login")
+                continue
+
+            # 3. 自動素通りできず手動入力画面で待機中の場合はウィンドウを表示
             if elapsed >= auto_timeout_seconds and not shown:
                 window.show()
                 shown = True
 
-            # 3. 安全のための最大タイムアウト
+            # 4. 安全のための放置防止最大タイムアウト
             if elapsed >= Config.AUTH_MAX_TIMEOUT:
                 window.destroy()
                 return
@@ -959,9 +1043,11 @@ def authenticate_via_webview(
         url=f"https://{host}/portal/login",
         width=Config.WEBVIEW_WINDOW_WIDTH,
         height=Config.WEBVIEW_WINDOW_HEIGHT,
-        hidden=True
+        hidden=True,
     )
-    # メインスレッドで GUI を起動し、裏スレッドで watch_loop を自動実行
+
+    # 保存済み Cookie の注入 (必要に応じて window 作成直後に実行)
+    # ※ pywebview の永続プロファイル (storage_path) により、通常はディスク側で Cookie が保持される
     webview.start(watch_loop, window, storage_path=str(profile_dir), private_mode=False)
     return cookies_result
 ```
@@ -1049,7 +1135,7 @@ from typing import Any
 import httpx
 
 from src.config import Config
-from src.auth.session_manager import SessionManager
+from src.auth import get_valid_cookies
 from src.client import endpoints
 from src.client.parsers.favorite_parser import parse_favorite_courses
 from src.client.parsers.course_parser import parse_courses
@@ -1071,19 +1157,16 @@ class SakaiClient:
     def __init__(
         self,
         host: str = Config.SAKAI_HOST,
-        session_manager: SessionManager | None = None,
         timeout: float = Config.REQUEST_TIMEOUT,
         cache_ttl: float = Config.CACHE_TTL
     ):
         """
         Args:
             host: Sakai ホスト名 (デフォルト: Config.SAKAI_HOST)
-            session_manager: セッション管理インスタンス (省略時は host から自動生成)
             timeout: HTTP リクエストのタイムアウト秒数 (デフォルト: Config.REQUEST_TIMEOUT)
             cache_ttl: 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (デフォルト: Config.CACHE_TTL)
         """
         self.host = host
-        self.session_manager = session_manager or SessionManager(host)
         self.timeout = timeout
         self.cache_ttl = cache_ttl
         
@@ -1143,7 +1226,7 @@ class SakaiClient:
         assert self._http_client is not None
         
         url = f"https://{self.host}{endpoint}"
-        cookies = await self.session_manager.get_valid_cookies()
+        cookies = await get_valid_cookies(host=self.host)
         
         resp = await self._http_client.request(
             method,
@@ -1156,7 +1239,7 @@ class SakaiClient:
         # セッション切れ検知 (401/403 または ログイン画面へのリダイレクト等)
         if self._is_session_expired(resp):
             # 強制再認証を実行
-            cookies = await self.session_manager.get_valid_cookies(force_refresh=True)
+            cookies = await get_valid_cookies(force_refresh=True, host=self.host)
             resp = await self._http_client.request(
                 method,
                 url,
@@ -1234,8 +1317,8 @@ class SakaiClient:
                 return default
             fut.set_exception(e)
             raise
-        except Exception as e:
-            if default is not None:
+        except BaseException as e:
+            if default is not None and isinstance(e, Exception):
                 logger.warning(
                     f"Sakai API communication error: {method} {endpoint} (params={params}) -> {e}. "
                     f"Falling back to default value."
@@ -1379,13 +1462,16 @@ class SakaiClient:
         # 1. 対象講義のコンテキストを解決
         site_names, site_tool_pages = await self._resolve_site_context(site_id, favorites_only)
         
-        # 2. 講義別 SAMIGO API (endpoints.quiz_context) を並行取得
+        # 2. 講義別 SAMIGO API (endpoints.sam_pub_context) を並行取得 (同時最大5件に制限)
+        sem = asyncio.Semaphore(5)
+
         async def fetch_one(s_id: str, s_name: str, t_pages: dict[str, str]) -> list[SakaiTask]:
-            endpoint = endpoints.quiz_context(s_id)
-            tool_page = t_pages.get("quiz")
-            # ツール無効等で 403/404 が発生しても _fetch が stderr に警告を記録し、安全に {} にフォールバック
-            data = await self._get_json(endpoint, default={})
-            return parse_quizzes(data, s_id, self.host, s_name, tool_page)
+            async with sem:
+                endpoint = endpoints.sam_pub_context(s_id)
+                tool_page = t_pages.get("quiz")
+                # ツール無効等で 403/404 が発生しても _fetch が stderr に警告を記録し、安全に {} にフォールバック
+                data = await self._get_json(endpoint, default={})
+                return parse_quizzes(data, s_id, self.host, s_name, tool_page)
 
         tasks = [
             fetch_one(s_id, s_name, site_tool_pages.get(s_id, {}))
@@ -1533,14 +1619,13 @@ class SakaiClient:
 
         all_tasks = assignments + quizzes
         
-        # 2. 未提出かつ直近 N 日以内のものを抽出
+        # 2. 未提出かつ直近 N 日以内のものを抽出 (parse_datetime で UTC aware に統一済み)
         upcoming: list[SakaiTask] = []
         for t in all_tasks:
             if t.is_submitted:
                 continue
             if t.due_date is not None:
-                task_due = t.due_date if t.due_date.tzinfo else t.due_date.replace(tzinfo=timezone.utc)
-                if now <= task_due <= limit_date:
+                if now <= t.due_date <= limit_date:
                     upcoming.append(t)
 
         # 3. 締切日時昇順でソート
@@ -1601,8 +1686,10 @@ class SakaiClient:
         Returns:
             bytes: ファイルの生バイナリデータ
         """
-        # 1. 相対パスへの正規化
-        endpoint = url if url.startswith("/") else "/" + url.split("/", 3)[-1]
+        # 1. 相対パスへの正規化 (urllib.parse.urlparse により安全にパス部分を抽出)
+        from urllib.parse import urlparse
+        path = urlparse(url).path
+        endpoint = path if path.startswith("/") else f"/{path}"
         
         # 2. セッション Cookie 付きでバイナリデータを取得
         resp = await self._request("GET", endpoint)
@@ -1759,11 +1846,12 @@ def parse_attachments(
 
 ##### 実装上の重要ルール & 内部ロジック
 
-1. **日時パースの堅牢性 (`parse_datetime`)**:
-   * **秒オブジェクト形式 (`{"epochSecond": 1712000000, "nano": 0}`)**: 課題 API (`assignment/my.json`) などで利用。`datetime.fromtimestamp(raw["epochSecond"])` で変換。
-   * **ミリ秒数値形式 (`1712000000000`)**: クイズ API やお知らせ API で利用。$10^{11}$ を超える数値はミリ秒と判定し、`raw / 1000` を `fromtimestamp` に渡す。
+1. **日時パースの堅牢性 & タイムゾーン統一 (`parse_datetime`)**:
+   * 生成される `datetime` はすべて **`tz=timezone.utc` を指定した aware datetime** に統一し、環境依存のローカル naive datetime 混在による 9 時間の時差誤認・締切判定狂いを完全に防止する。
+   * **秒オブジェクト形式 (`{"epochSecond": 1712000000, "nano": 0}`)**: 課題 API (`assignment/my.json`) などで利用。`datetime.fromtimestamp(raw["epochSecond"], tz=timezone.utc)` で変換。
+   * **ミリ秒数値形式 (`1712000000000`)**: クイズ API やお知らせ API で利用。$10^{11}$ を超える数値はミリ秒と判定し、`raw / 1000` を `fromtimestamp(..., tz=timezone.utc)` に渡す。
    * **秒数値形式 (`1712000000`)**: 10桁前後の整数・小数は秒単位として変換。
-   * **ISO 文字列 / 8桁日付文字列**: `datetime.fromisoformat()` や `strptime('%Y%m%d')` でフォールバックパース。
+   * **ISO 文字列 / 8桁日付文字列**: `datetime.fromisoformat()` や `strptime('%Y%m%d')` でフォールバックパース（naive の場合は `.replace(tzinfo=timezone.utc)` で補正）。
    * パース失敗時や `None`/空文字入力時は、例外を投げずに `None` を返却するフェイルセーフ設計。
 2. **HTML サニタイズ (`clean_html_text`)**:
    * `<br>`, `<br/>`, `</p>`, `</div>`, `</li>` を適切な改行文字（`\n`）に置換。
@@ -2478,27 +2566,43 @@ def parse_course_contents(
 | **`get_quizzes`** | `src.client.sakai_client:`<br/>`SakaiClient.get_quizzes` | `filter_tasks(tasks)` | **小テスト・クイズ一覧を取得**。<br/>- `site_id: str \| None = None`<br/>- `favorites_only: bool = True`<br/>- 対象講義の SAMIGO API を並行取得して統合。 |
 | **`get_upcoming_deadlines`** | `src.client.sakai_client:`<br/>`SakaiClient.get_upcoming_deadlines` | `filter_tasks(tasks)` | **直近の未提出課題・テストを締切順に統合取得**。<br/>- `days: int = Config.DEFAULT_DEADLINE_DAYS` (何日先までの締切を対象とするか)<br/>- `favorites_only: bool = True`<br/>- AI が「今週の課題ある？」と尋ねられた際の第一選択ツール。 |
 | **`get_announcements`** | `src.client.sakai_client:`<br/>`SakaiClient.get_announcements` | `filter_announcements(announcements)` | **お知らせ・連絡事項一覧または個別詳細を取得**。<br/>- `site_id: str \| None = None`<br/>- `announcement_id: str \| None = None`<br/>- `n: int = Config.DEFAULT_ANNOUNCEMENT_LIMIT` (取得件数上限)<br/>- `favorites_only: bool = True`<br/>- `include_details: bool = True` |
-| **`get_calendar_events`** | `src.client.sakai_client:`<br/>`SakaiClient.get_calendar_events` | `filter_calendar_events(events)` | **カレンダー予定・イベント一覧を取得**。<br/>- `site_id: str \| None = None`<br/>- `start_date: str \| None = None` (ISO 8601 文字列)<br/>- `end_date: str \| None = None`<br/>- `event_type: str \| None = None` |
+| **`get_calendar_events`** | `src.client.sakai_client:`<br/>`SakaiClient.get_calendar_events` | `filter_calendar_events(events)` | **カレンダー予定・イベント一覧を取得**。<br/>- `site_id: str \| None = None`<br/>- `start_date: str \| None = None` (ISO 8601 文字列。ツール層で datetime にパース)<br/>- `end_date: str \| None = None`<br/>- `event_type: str \| None = None` |
 | **`get_course_materials`** | `src.client.sakai_client:`<br/>`SakaiClient.get_course_materials` | `filter_course_materials(materials, site_id)` | **指定講義の授業資料・配布ファイル一覧を取得**。<br/>- `site_id: str` (必須)<br/>- `files_only: bool = False` (ファイルのみかフォルダも含めるか) |
 | **`get_course_dashboard`** | `src.client.sakai_client:`<br/>`SakaiClient.get_course_dashboard` | `filter_dashboard(dashboard)` | **指定講義の総合状況（課題・テスト・お知らせ・資料）を 1 発で並行取得**。<br/>- `site_id: str` (必須)<br/>- AI が「この講義の状況を全部教えて」と言われた際の最適ツール。 |
 | **`download_material`** | `src.client.sakai_client:`<br/>`SakaiClient.download_material` | `check_download_allowed_by_url(url)` | **講義資料や課題添付ファイルをダウンロード**。<br/>- `url: str` (ダウンロード対象の Sakai 相対/絶対 URL)<br/>- `save_path: str \| None = None` (ローカル保存先パス)<br/>- AI が配布資料の内容を読んで要約・解答作成する際に利用。 |
-| **`open_settings`** | `src.gui.settings_window:`<br/>`show_settings_window` | *(フィルタ不要)* | **ユーザー設定画面 (WebView GUI) をポップアップ起動**。<br/>- 引数なし。<br/>- AI が「設定画面を開いて」と依頼された際に実行し、ユーザーが手動で講義別ポリシーやホスト名を変更・保存可能。 |
+| **`open_settings`** | `src.server:`<br/>`open_settings` (MCPツール) | *(フィルタ不要)* | **ユーザー設定画面 (WebView GUI) を別プロセスで起動**。<br/>- 引数なし。<br/>- `subprocess.Popen` により別プロセスで `--settings` を起動するため、MCP 通信 (stdio) を一切ブロックせず設定中も AI と対話可能。<br/>- 設定保存後は `Config.get_course_policy()` の mtime 動的検知により即時反映される。 |
 | **`get_settings`** | `src.config:`<br/>`Config.load` | *(フィルタ不要)* | **現在の設定一覧（ホスト名・講義別ポリシー等）を取得**。<br/>- 引数なし。<br/>- ポリシーによる制限理由の確認や、ユーザーへの設定変更案内時に利用。 |
-| **`check_auth_status`** | `src.auth.session_checker:`<br/>`is_session_valid` | *(フィルタ不要)* | **現在の Sakai ログインセッションの有効性を確認**。<br/>- 有効なユーザー情報（`userEid`）を返却し、失効時は再ログインを促す。 |
+| **`check_auth_status`** | `src.auth.session_checker:`<br/>`get_session_info` | *(フィルタ不要)* | **現在の Sakai ログインセッションの有効性を確認**。<br/>- 有効なユーザー情報（`userEid` 等）を返却し、失効時は再ログインを促す。 |
 
 ---
 
 ### 5.3 サーバーエントリポイント (`src/server.py: main()`)
 
-プロセス全体の初期化・エントリポイントは以下の通りmain()に実装します。
+プロセス全体の初期化・エントリポイントは以下の通り `main()` に実装します。
 
 ```python
 import argparse
+import subprocess
 import sys
 from mcp.server.fastmcp import FastMCP
 from src.config import Config
 
 mcp = FastMCP("sakai-tasks-mcp")
+
+
+@mcp.tool()
+def open_settings() -> str:
+    """
+    ユーザー設定画面 (GUI) を別プロセスでポップアップ起動します。
+    stdio 通信をブロックしないため、設定画面を開いたまま AI との対話を継続できます。
+    """
+    subprocess.Popen(
+        [sys.executable, sys.argv[0], "--settings"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True
+    )
+    return "ユーザー設定画面を開きました。設定保存後は自動的に最新設定が反映されます。"
 
 
 def main():
@@ -2509,18 +2613,30 @@ def main():
     parser = argparse.ArgumentParser(description="Sakai Tasks MCP Server")
     parser.add_argument("--host", type=str, help="Sakai LMS のホスト名 (例: tact.ac.thers.ac.jp)")
     parser.add_argument("--settings", action="store_true", help="ユーザー設定 GUI 画面を起動する")
+    parser.add_argument("--login", action="store_true", help="WebView ログイン画面を別プロセスのメインスレッドで実行して Cookie を保存する")
     args = parser.parse_args()
 
-    # 1. --settings 引数指定時: 設定画面 GUI を起動して終了
+    # 1. --login 引数指定時: メインスレッドで WebView ログインを実行して終了 (OS制約遵守)
+    if args.login:
+        from src.auth.webview_auth import authenticate_via_webview
+        from src.auth import cookie_storage
+        target_host = args.host or Config.SAKAI_HOST
+        cookies = authenticate_via_webview(host=target_host)
+        if not cookies:
+            sys.exit(1)
+        cookie_storage.save_all_cookies(cookies)
+        sys.exit(0)
+
+    # 2. --settings 引数指定時: 単一ウィンドウで設定画面 GUI を起動して終了
     if args.settings:
         from src.gui.settings_window import show_settings_window
         show_settings_window()
         sys.exit(0)
 
-    # 2. 通常起動時: Config を初期化 (引数 -> 環境変数 -> config.json -> 初回プリセット GUI)
+    # 3. 通常起動時: Config を安全に初期化 (stdio タイムアウト防止のためブロッキング GUI は出さない)
     Config.init(cli_host=args.host)
 
-    # 3. stdio 通信で FastMCP サーバーを開始
+    # 4. stdio 通信で FastMCP サーバーを開始
     mcp.run(transport="stdio")
 
 
@@ -2578,6 +2694,7 @@ flowchart TD
 #### 実装コード (`src/policy/policy_filter.py`)
 
 ```python
+import re
 from src.config import Config, AIPolicyMode
 from src.models import (
     CourseSite,
@@ -2616,9 +2733,9 @@ def filter_tasks(tasks: list[SakaiTask]) -> list[SakaiTask]:
                 )
             )
         elif policy == AIPolicyMode.TEXT_ONLY:
-            # 添付ファイルのダウンロード URL のみ消去
+            # 添付ファイルのダウンロード URL のみ消去 (None にマスク)
             masked_attachments = [
-                att.model_copy(update={"url": ""}) for att in task.attachments
+                att.model_copy(update={"url": None}) for att in task.attachments
             ]
             result.append(task.model_copy(update={"attachments": masked_attachments}))
         else:  # ALLOW_ALL
@@ -2643,8 +2760,9 @@ def filter_announcements(announcements: list[Announcement]) -> list[Announcement
                 )
             )
         elif policy == AIPolicyMode.TEXT_ONLY:
+            # 添付ファイルのダウンロード URL のみ消去 (None にマスク)
             masked_attachments = [
-                att.model_copy(update={"url": ""}) for att in item.attachments
+                att.model_copy(update={"url": None}) for att in item.attachments
             ]
             result.append(item.model_copy(update={"attachments": masked_attachments}))
         else:  # ALLOW_ALL
@@ -2693,14 +2811,30 @@ def filter_dashboard(dashboard: CourseDashboard) -> CourseDashboard:
     )
 
 
+_SAKAI_RESOURCE_PATTERN = re.compile(r"^/access/content/(?:group|attachment)/([^/]+)/")
+
+
 def check_download_allowed_by_url(url: str) -> None:
-    """URL から講義 site_id を推定し、ダウンロードが禁止されている場合は例外を送出する。"""
-    # 例: /access/content/group/2024_01_AI101/... または /attachment/2024_01_AI101/...
-    for site_id, policy in Config.POLICIES.items():
-        if site_id in url and policy in (AIPolicyMode.BLOCKED, AIPolicyMode.SCHEDULE_ONLY, AIPolicyMode.TEXT_ONLY):
-            raise PermissionError(
-                f"講義 '{site_id}' は現在のポリシー ({policy.value}) によりファイルのダウンロードが禁止されています。"
-            )
+    """
+    URL パスから講義 site_id を正規表現で特定し、ポリシーで許可されていない場合は例外を送出する。
+    未設定講義 (Config.POLICIES 未登録) の場合も Config.get_course_policy() により
+    自動的にデフォルト (TEXT_ONLY: 強 / DL禁止) が適用されるため、Secure by Default が完全に担保される。
+    """
+    from urllib.parse import urlparse
+    path = urlparse(url).path
+    match = _SAKAI_RESOURCE_PATTERN.match(path)
+
+    if not match:
+        # Sakai の講義リソース形式でない場合は安全側に倒して拒否
+        raise PermissionError(f"URL '{url}' から対象講義を特定できないため、ダウンロードを制限しました。")
+
+    site_id = match.group(1)
+    policy = Config.get_course_policy(site_id)
+
+    if policy in (AIPolicyMode.BLOCKED, AIPolicyMode.SCHEDULE_ONLY, AIPolicyMode.TEXT_ONLY):
+        raise PermissionError(
+            f"講義 '{site_id}' は現在のポリシー ({policy.value}) によりファイルのダウンロードが禁止されています。"
+        )
 ```
 
 ---
@@ -2741,22 +2875,20 @@ def check_download_allowed_by_url(url: str) -> None:
 | **`default_deadline_days`** | `int` | `30` | 直近締切タスク統合取得時のデフォルト対象日数（例: 30日間） |
 | **`default_announcement_limit`** | `int` | `7` | お知らせ取得時のデフォルト取得件数（例: 7件） |
 
-##### 2. ファイル直接編集 (`config.json`) または定数で管理する項目 (上級者・内部制御用)
+##### 2. 内部固定定数 (上級者・内部制御用)
 
-| 設定キー / 定数名 | 型 | デフォルト値 | 説明 |
-| :--- | :--- | :--- | :--- |
-| **`request_timeout`** | `float` | `15.0` | Sakai API 通常 HTTP 通信のタイムアウト秒数 |
-| **`cache_ttl`** | `float` | `300.0` | 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (5分) |
-| **`auth_cooldown_seconds`** | `float` | `3.0` | 認証キャンセル・失敗直後の画面連打防止クールダウン秒数 |
-| **`session_check_timeout`** | `float` | `5.0` | セッション確認 API (`/session/current.json`) タイムアウト秒数 |
-| **`webview_auto_timeout`** | `float` | `5.0` | WebView 画面を非表示のまま自動素通りを試みる猶予秒数 |
-| **`auth_max_timeout`** | `float` | `300.0` | 手動ログイン画面の放置防止最大待機タイムアウト秒数 (5分) |
-| **`webview_window_width`** | `int` | `800` | ログイン / 設定画面ウィンドウの初期横幅 (px) |
-| **`webview_window_height`** | `int` | `600` | ログイン / 設定画面ウィンドウの初期高さ (px) |
+| 設定キー / 定数名 | 型 | デフォルト値 | 管理形式 | 説明 |
+| :--- | :--- | :--- | :--- | :--- |
+| **`request_timeout`** | `float` | `15.0` | `config.json` 保存 | Sakai API 通常 HTTP 通信のタイムアウト秒数 |
+| **`cache_ttl`** | `float` | `300.0` | `config.json` 保存 | 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (5分) |
+| **`auth_cooldown_seconds`** | `float` | `3.0` | 内部固定定数 | 認証キャンセル・失敗直後の画面連打防止クールダウン秒数 |
+| **`session_check_timeout`** | `float` | `5.0` | 内部固定定数 | セッション確認 API (`/session/current.json`) タイムアウト秒数 |
+| **`webview_auto_timeout`** | `float` | `5.0` | 内部固定定数 | WebView 画面を非表示のまま自動素通りを試みる猶予秒数 |
+| **`auth_max_timeout`** | `float` | `300.0` | 内部固定定数 | 手動ログイン画面の放置防止最大待機タイムアウト秒数 (5分) |
+| **`webview_window_width`** | `int` | `800` | 内部固定定数 | ログイン / 設定画面ウィンドウの初期横幅 (px) |
+| **`webview_window_height`** | `int` | `600` | 内部固定定数 | ログイン / 設定画面ウィンドウの初期高さ (px) |
 
 ---
-
-#### 講義別 AI 利用ポリシー仕様 (`AIPolicyMode`)
 
 #### 講義別 AI 利用ポリシー仕様 (`AIPolicyMode`)
 
@@ -2851,7 +2983,10 @@ class Config:
     CACHE_TTL: float = 300.0
     POLICIES: dict[str, AIPolicyMode] = {}
 
-    # 3. ライフサイクル & 実行中リロード・保存メソッド
+    # 3. 内部状態 (mtime ベースの自動再読込用)
+    _last_loaded_mtime: float = 0.0
+
+    # 4. ライフサイクル & 実行中リロード・保存メソッド
     @classmethod
     def apply_data(cls, data: AppConfigData) -> None:
         """AppConfigData をクラス変数に一括反映する"""
@@ -2863,24 +2998,30 @@ class Config:
         cls.CACHE_TTL = data.cache_ttl
 
     @classmethod
+    def check_and_reload(cls) -> None:
+        """config.json が外部 (別プロセス等) で更新されていれば自動再読込する"""
+        if cls.CONFIG_FILE_PATH.exists():
+            try:
+                current_mtime = cls.CONFIG_FILE_PATH.stat().st_mtime
+                if current_mtime > cls._last_loaded_mtime:
+                    cls.load()
+            except Exception:
+                pass
+
+    @classmethod
     def init(cls, cli_host: str | None = None) -> None:
         """
         サーバー起動時に main() から 1 回呼び出し、設定を初期化・確定する。
+        stdio タイムアウトを防止するためブロッキング GUI は起動せず、
+        1. CLI引数 -> 2. 環境変数 -> 3. config.json -> 4. デフォルト の優先度で確定する。
         """
         data = cls.load()
-
-        # 優先順位解決: 1. CLI引数 -> 2. 環境変数 -> 3. config.json -> 4. 初回GUI
         if cli_host:
             data.sakai_host = cli_host
         elif env_host := os.environ.get("SAKAI_HOST"):
             data.sakai_host = env_host
-        elif not data.sakai_host:
-            # 初回起動時: 初回設定 GUI を起動して選択
-            from src.gui.settings_window import show_initial_setup_window
-            selected = show_initial_setup_window()
-            if not selected:
-                sys.exit(1)
-            data.sakai_host = selected
+        elif not cls.CONFIG_FILE_PATH.exists():
+            # 初回起動時: デフォルト値で config.json を生成
             cls.save(data)
 
         cls.apply_data(data)
@@ -2894,6 +3035,7 @@ class Config:
             try:
                 with open(cls.CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
                     data = AppConfigData.model_validate_json(f.read())
+                cls._last_loaded_mtime = cls.CONFIG_FILE_PATH.stat().st_mtime
             except Exception:
                 data = AppConfigData()
 
@@ -2915,11 +3057,18 @@ class Config:
             )
         with open(cls.CONFIG_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(data.model_dump_json(indent=2))
+        if cls.CONFIG_FILE_PATH.exists():
+            cls._last_loaded_mtime = cls.CONFIG_FILE_PATH.stat().st_mtime
         cls.apply_data(data)
 
     @classmethod
     def get_course_policy(cls, site_id: str) -> AIPolicyMode:
-        """指定された講義サイトの AI 利用ポリシーを 1 行で取得する。未設定時はデフォルト (TEXT_ONLY: 強)。"""
+        """
+        指定された講義サイトの AI 利用ポリシーを取得する。
+        別プロセス (open_settings) による変更を即時反映するため、呼び出し時に mtime チェックを行う。
+        未設定時はデフォルト (TEXT_ONLY: 強)。
+        """
+        cls.check_and_reload()
         return cls.POLICIES.get(site_id, cls.DEFAULT_POLICY)
 ```
 
@@ -3002,14 +3151,14 @@ class SettingsUIData(BaseModel):
     courses: list[CourseSettingItem] # 講義一覧 (お気に入り優先順)
 
 
-def build_settings_ui_data() -> SettingsUIData:
+async def build_settings_ui_data() -> SettingsUIData:
     """
     Sakai から全講義一覧を取得し、既存の config.json とマージして
     UI 用データ (SettingsUIData) を構築する。
     """
     # 1. 講義一覧とお気に入り情報を SakaiClient から取得 (未ログインなら自動ログイン)
     client = SakaiClient()
-    courses = asyncio.run(client.get_courses(favorites_only=False))
+    courses = await client.get_courses(favorites_only=False)
 
     # 2. 現在の config.json をロード
     config = Config.load()
@@ -3102,7 +3251,20 @@ class SettingsApi:
 
     def save_settings(self, data: dict) -> bool:
         """ユーザーが「保存」をクリックした際に呼ばれ、config.json を更新してウィンドウを閉じる"""
-        app_config = AppConfigData(**data)
+        # JS から渡された courses 配列を policies 辞書 (site_id -> AIPolicyMode) にマッピング変換
+        policies = {}
+        for c in data.get("courses", []):
+            if "id" in c and "current_policy" in c:
+                policies[c["id"]] = AIPolicyMode(c["current_policy"])
+
+        app_config = AppConfigData(
+            sakai_host=data.get("sakai_host", Config.SAKAI_HOST),
+            policies=policies,
+            default_deadline_days=int(data.get("default_deadline_days", Config.DEFAULT_DEADLINE_DAYS)),
+            default_announcement_limit=int(data.get("default_announcement_limit", Config.DEFAULT_ANNOUNCEMENT_LIMIT)),
+            request_timeout=float(data.get("request_timeout", Config.REQUEST_TIMEOUT)),
+            cache_ttl=float(data.get("cache_ttl", Config.CACHE_TTL)),
+        )
         Config.save(app_config)
         if self._window:
             self._window.destroy()
@@ -3113,47 +3275,82 @@ class SettingsApi:
 
 #### 6.2.3 ウィンドウ起動制御モジュール (`src/gui/settings_window.py`)
 
-* **役割**: `pywebview` ウィンドウの生成・起動を司る薄いエントリポイント。
+* **役割**: `pywebview` ウィンドウの生成・起動を司るエントリポイント。
+* **単一ライフサイクル設計**:
+  * OS のメインスレッド制約および `pywebview.start()` の 1 回呼び出し制約を遵守するため、**単一の WebView ウィンドウ内で「セッション確認 $\rightarrow$ 必要に応じて同一画面でログイン $\rightarrow$ 設定画面描画」を完結** させます。
 
 ```python
+import asyncio
 import sys
+import time
 import webview
+from pathlib import Path
 from src.config import Config
 from src.gui.data_builder import build_settings_ui_data
 from src.gui.api import SettingsApi
+from src.auth import cookie_storage, session_checker
 
 
 def show_settings_window() -> None:
     """
-    ユーザー詳細設定画面 (WebView GUI) をポップアップ起動する。
+    ユーザー詳細設定画面 (WebView GUI) を単一ウィンドウ・単一ライフサイクルで起動する。
+    別プロセス (--settings) からメインスレッドで直接呼び出される。
     """
-    try:
-        ui_data = build_settings_ui_data()
-    except RuntimeError as e:
-        # ログインキャンセル時などは画面を開かずに安全に終了
-        print(f"設定画面の起動がキャンセルされました: {e}", file=sys.stderr)
-        return
-
-    api = SettingsApi(initial_data=ui_data)
     template_path = Path(__file__).parent / "templates" / "settings.html"
+    api = SettingsApi(initial_data=None)
 
+    # 1. 単一ウィンドウをメインスレッドで生成
     window = webview.create_window(
         title="Sakai Tasks MCP 設定",
-        url=str(template_path),
+        url="about:blank",
         js_api=api,
         width=Config.WEBVIEW_WINDOW_WIDTH,
         height=Config.WEBVIEW_WINDOW_HEIGHT,
         resizable=True,
     )
     api.set_window(window)
-    webview.start()
+
+    def watch_and_load():
+        # 2. セッション確認
+        cookies = cookie_storage.load_sakai_cookies()
+        is_valid = False
+        if cookies:
+            try:
+                is_valid = asyncio.run(session_checker.is_session_valid(cookies))
+            except Exception:
+                is_valid = False
+
+        # 3. 未ログインの場合: 同一ウィンドウでログイン画面を開いて完了を待機
+        if not is_valid:
+            window.load_url(f"https://{Config.SAKAI_HOST}/portal/login")
+            while True:
+                time.sleep(0.3)
+                url = window.get_current_url() or ""
+                if url.startswith(f"https://{Config.SAKAI_HOST}/portal") and not url.startswith(f"https://{Config.SAKAI_HOST}/portal/login"):
+                    # ログイン完了検知: Cookie を保存
+                    new_cookies = window.get_cookies()
+                    if new_cookies:
+                        cookie_storage.save_all_cookies(new_cookies)
+                    break
+
+        # 4. 認証完了後: 講義一覧データを取得して設定画面 HTML を同一ウィンドウにロード
+        try:
+            ui_data = asyncio.run(build_settings_ui_data())
+            api._initial_data = ui_data
+            window.load_url(str(template_path))
+        except Exception as e:
+            print(f"設定データの読み込みに失敗しました: {e}", file=sys.stderr)
+            window.destroy()
+
+    # webview.start はメインスレッドで 1 回だけ起動 (OS 制約遵守)
+    webview.start(watch_and_load, storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False)
 
 
 def show_initial_setup_window() -> str | None:
     """
-    初回起動時に小さな大学プリセット選択ウィンドウを表示し、選択されたホスト名を返す。
+    初回起動時やインストーラから呼び出される大学プリセット選択ダイアログ。
     """
-    # 初回起動時のプリセット選択ダイアログ処理
+    # プリセット選択ダイアログ処理
     ...
 ```
 
@@ -3397,7 +3594,7 @@ flowchart TD
 | **`tests/test_policy_filter.py`** | `src/policy/policy_filter.py` | - `ALLOW_ALL`: データが完全無加工で返却されること。<br/>- `TEXT_ONLY`: 講義資料取得・ダウンロード URL のみが拒否されること。<br/>- `SCHEDULE_ONLY`: 指示文・本文が `[講義ポリシーにより非表示]` にマスクされること。<br/>- `BLOCKED`: 該当講義の全データが完全に除外されること。 |
 | **`tests/test_parsers.py`** | `src/client/parsers/*` | - Sakai Direct REST API 生 JSON（課題・テスト・お知らせ・カレンダー）のパース整合性。<br/>- `/portal` HTML からのお気に入り講義 ID 抽出ロジック（BeautifulSoup）の検証。 |
 | **`tests/test_gui_data_builder.py`** | `src/gui/data_builder.py` | - `build_settings_ui_data()` において、お気に入り講義（★）が先頭に正しくソートされること。<br/>- 新規講義にデフォルトポリシー（`TEXT_ONLY`）が自動注入されること。 |
-| **`tests/test_cookie_storage.py`** | `src/auth/cookie_storage.py` | - Windows DPAPI（またはフォールバック暗号化）による Cookie 保存・復元の整合性検証。 |
+| **`tests/test_cookie_storage.py`** | `src/auth/cookie_storage.py` | - `Fernet` + `keyring` による Cookie 暗号化保存・復元の整合性検証。 |
 
 ---
 
