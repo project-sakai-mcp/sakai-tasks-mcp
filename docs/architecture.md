@@ -1,6 +1,6 @@
 # Sakai-Tasks-MCP アーキテクチャ設計書
 
-本ドキュメントは、Sakai LMS 連携 MCP サーバー `sakai-tasks-mcp` の全体アーキテクチャ、内部レイヤ構造、データモデル、各モジュールの詳細仕様、セキュリティポリシー、およびユーザー設定 GUI の設計仕様を定義するものです。
+本ドキュメントは、Sakai LMS 連携 MCP サーバー `sakai-tasks-mcp` の全体アーキテクチャ、内部レイヤ構造、データモデル、各モジュールの詳細仕様、セキュリティポリシー、ならびにユーザー設定 GUI の設計仕様を定義します。
 
 ---
 
@@ -61,7 +61,7 @@
 
 `sakai-tasks-mcp` は、大学等の教育機関で広く利用されている LMS（Learning Management System）**「Sakai」** から、課題・小テスト・お知らせ・講義資料などのタスク情報を安全に取得し、**Model Context Protocol (MCP)** を通じて AI アシスタント（Claude Desktop, Cursor, エージェント等）に提供するデスクトップ MCP サーバーです。
 
-本システムは、学生が Python の事前インストールなしで即座に利用できるよう、ポータブル Python ランタイム（Windows: Embeddable Python / macOS: python-build-standalone）を同梱したパッケージとして配布されます。AI クライアントがサブプロセスとして本サーバーを起動し、標準入出力（stdio）を介してオンデマンドに JSON-RPC 通信を行います。常駐プロセスやバックグラウンドサービスを必要としません。
+本システムは、学生が Python を事前インストールすることなく即座に利用できるよう、ポータブル Python ランタイム（Windows: Embeddable Python / macOS: python-build-standalone）を同梱したパッケージとして配布します。AI クライアントがサブプロセスとして本サーバーを起動し、標準入出力（stdio）を介してオンデマンドに JSON-RPC 通信を行います。常駐プロセスやバックグラウンドサービスは不要です。
 
 ```mermaid
 flowchart TD
@@ -221,7 +221,7 @@ sequenceDiagram
 3. **高凝集・疎結合 & 純粋関数設計**:
    * レスポンスのパース（`parsers/`）、セキュリティフィルタ（`policy_filter.py`）、および UI データ構築（`data_builder.py`）は、外部状態や GUI に依存しない純粋関数として実装し、単体テストカバレッジを極限まで高めます。
 4. **ゼロ・インストール配布 (Zero Dependency for Students)**:
-   * Python 環境や Node.js を持たない学生でも、配布パッケージ（ZIP）を展開して設定ファイルにパスを追記するだけで即座に利用できる、公式ポータブル Python ランタイム同梱による安全なゼロ・セットアップ配布を前提とします。
+   * 公式ポータブル Python ランタイムを同梱し、安全なゼロ・セットアップ配布を前提とします。Python 環境や Node.js を持たない学生でも、配布パッケージ（ZIP）を展開して設定ファイルにパスを追記するだけで即座に利用できます。
 
 ---
 
@@ -292,7 +292,7 @@ sakai-tasks-mcp/
 
 ## 3. 共通データモデル (`src/models.py`)
 
-本モジュールは、Sakai Direct REST API および `/portal` HTML からパースされた各種データを正規化し、システム全体（クライアント、パーサー、FastMCP サーバー）および AI クライアント（Claude Desktop / Cursor 等）に対して提供する **単一のデータ定義源（Single Source of Truth）** です。
+本モジュールは、Sakai Direct REST API および `/portal` HTML からパースした各種データを正規化し、システム全体（クライアント、パーサー、FastMCP サーバー）や AI クライアント（Claude Desktop / Cursor 等）へ提供する **単一のデータ定義源（Single Source of Truth）** です。
 
 * **Pydantic v2 準拠**: 高速なバリデーションと厳格な型安全性を確保。
 * **AI 親和性**: すべてのフィールドに明確な `Field(description="...")` を付与し、MCP プロトコル経由で AI が各項目の意味を正確に解釈できるように設計。
@@ -445,7 +445,7 @@ class BaseModelConfig(BaseModel):
         use_enum_values=True      # JSON 出力時に Enum 値 (文字列) を直接出力
     )
 
-#AIへの仕様理解のためField()を使う。
+# AI が各フィールドの意味を正確に解釈できるよう Field(description="...") を付与
 
 class Attachment(BaseModelConfig):
     """課題やお知らせに添付されたファイル情報"""
@@ -764,8 +764,8 @@ flowchart TD
    * WebView ウィンドウの起動（`webview.start()`）は、OS（Windows / macOS）の厳格なウィンドウシステム制約により「プロセスのメインスレッド」でしか実行できません。
    * ワーカースレッド（`asyncio.to_thread`）からの起動によるクラッシュや、MCP サーバーのメイン asyncio イベントループ（stdio 通信）のフリーズを防ぐため、認証 GUI は必ず `asyncio.create_subprocess_exec(sys.executable, sys.argv[0], "--login", ...)` により **完全に独立した別プロセスのメインスレッド** で実行します。
 3. **認証キャンセル・失敗時の連鎖起動防止（クールダウン制御）**:
-   * ユーザーがログインウィンドウを「×」で閉じるなどして認証がキャンセルされた場合、`RuntimeError` を送出するとともに `_last_auth_error_time = now` を記録する。
-   * 待機中タスクはロック取得直後にクールダウン（3.0 秒以内）を検知して WebView を開かずに即座に同一の例外で終了し、画面の連打起動を防止する。
+   * ユーザーがログインウィンドウを「×」で閉じるなどして認証がキャンセルされた場合は、`RuntimeError` を送出するとともに `_last_auth_error_time = now` を記録する。
+   * 待機中のタスクはロック取得直後にクールダウン（3.0 秒以内）を検知し、WebView を開かずに同一の例外を送出して直ちに終了することで、画面の連続起動を防止する。
 
 #### 4.1.3 セッション有効性チェッカー (`src/auth/session_checker.py`)
 
@@ -969,9 +969,9 @@ def authenticate_via_webview(
    * ログイン成功時は、大学の SSO 構成（Microsoft 365, Google, オンプレ Shibboleth 等）を問わず、Sakai 本体の仕様により **100% 確実に `https://<host>/portal`（または `/portal/site/...` 等の配下）へ着地** する。
    * したがって、完了判定条件は `url.startswith(f"https://{host}/portal") and not url.startswith(f"https://{host}/portal/login")` のみとする（未ログイン時の仮 Cookie 発行による誤判定を根絶）。
 4. **★手動ログイン 5 分超過時の Shibboleth / 外部 IdP タイムアウト自動救済**:
-   * 手動ログイン（スマホでの 2 要素認証など）に 5 分以上かかった場合、Microsoft 等の認証自体は成功してブラウザ内に認証 Cookie が保存されるが、前段の Shibboleth IdP のトランザクション制限（標準 300 秒 = 5 分）切れにより `HTTP 500 (Stale Request)` エラー画面で停止する。
-   * 外部 IdP ドメインにおいて `/POST/SSO` や `Stale Request` で停止したことを検知した場合、**1 回だけ自動で `window.load_url(f"https://{host}/portal/login")` を実行** する。
-   * ブラウザ内にはすでに有効な IdP 認証 Cookie があるため、2 度目はパスワード・MFA 入力を全スキップして一瞬（0.5 秒）で Sakai `/portal` まで突き抜け、自動で Cookie を保存してウィンドウを破棄する。
+   * 手動ログイン（スマートフォンでの 2 要素認証など）に 5 分以上要した場合、Microsoft 等の認証自体は成功してブラウザ内に認証 Cookie が保存されますが、前段の Shibboleth IdP におけるトランザクション有効期限（標準 300 秒 = 5 分）が切れることで `HTTP 500 (Stale Request)` エラー画面で停止します。
+   * 外部 IdP ドメインにおいて `/POST/SSO` や `Stale Request` による停止を検知した場合、**1 回に限り自動で `window.load_url(f"https://{host}/portal/login")` を実行** します。
+   * ブラウザ内にはすでに有効な IdP 認証 Cookie が保持されているため、2 度目はパスワードや MFA の入力をすべて省略して即座（約0.5秒）に Sakai の `/portal` へ遷移し、自動で Cookie を保存してウィンドウを破棄します。
 5. **単一ループによる表示切り替え**:
    * **最初の `auto_timeout_seconds` 秒間（パターン A: 高速自動素通り）**:
      * Cookie が有効であれば非表示のまま 0.5〜1 秒で `/portal` に着地し、画面を一切表示（チラつき）させずにウィンドウを即破棄。
@@ -982,7 +982,7 @@ def authenticate_via_webview(
 7. **ユーザーによる中断ハンドリング**:
    * ユーザーがログインを完了せずにウィンドウの「×」ボタンを押した場合は、空リスト `[]` を返却する。
 8. **別プロセスのメインスレッドでの実行**:
-   * OS の GUI メインスレッド制約を遵守し、MCP stdio 通信をフリーズさせないため、`session_manager.py` から `python server.py --login --host <host>` 経由で **独立したプロセスのメインスレッド** で呼び出されます。認証成功時は直ちに `cookie_storage.save_all_cookies()` で暗号化保存してステータスコード 0 で終了し、ユーザー中断・タイムアウト時は非 0 で終了します。
+   * OS の GUI メインスレッド制約を遵守し、MCP stdio 通信のフリーズを防ぐため、本処理は `session_manager.py` から `python server.py --login --host <host>` を介して **独立したプロセスのメインスレッド** で実行します。認証成功時は直ちに `cookie_storage.save_all_cookies()` で暗号化保存してステータスコード 0 で終了し、ユーザーによる中断やタイムアウトの発生時は非 0 で終了します。
 
 ##### 内部実装構造イメージ
 
@@ -1656,7 +1656,7 @@ class SakaiClient:
     ) -> list[SakaiTask]:
         """
         直近 N 日以内に締切のある未提出課題および小テストを統合し、締切日時昇順でソートして取得する。
-        AI アシスタントが「直近の課題を教えて」と尋ねられた際に最適な統合メソッド。
+        ユーザーから「直近の課題を教えて」と尋ねられた際に最適な統合メソッド。
 
         Args:
             days: 何日後までの締切を対象とするか (デフォルト: Config.DEFAULT_DEADLINE_DAYS)
@@ -1771,7 +1771,7 @@ class SakaiClient:
 3. **エラーの一元フォールバックと標準エラー出力記録**:
    * 403/404 や通信エラー時は、`_fetch` でメソッド・エンドポイント・パラメータを `stderr`（Python ロガー）に記録しつつ、安全にデフォルト値へフォールバックして処理を継続する。
 4. **セッション失効の自動復旧**:
-   * 通信中に Sakai セッション切れを検知した場合、内部で即座に `SessionManager` の強制再認証（WebView 起動）を呼び出し、ユーザーが意識することなく自動リトライを完了させる。
+   * 通信中に Sakai のセッション切れを検知した場合は、内部で即座に `SessionManager` の強制再認証（WebView 起動）を呼び出し、利用者が意識することなく自動で再試行を完了します。
 ---
 
 #### 4.2.3 API エンドポイント定数 (`src/client/endpoints.py`)
@@ -1907,7 +1907,7 @@ def parse_attachments(
 ##### 実装上の重要ルール & 内部ロジック
 
 1. **日時パースの堅牢性 & タイムゾーン統一 (`parse_datetime`)**:
-   * 生成される `datetime` はすべて **`tz=timezone.utc` を指定した aware datetime** に統一し、環境依存のローカル naive datetime 混在による 9 時間の時差誤認・締切判定狂いを完全に防止する。
+   * 生成される `datetime` はすべて **`tz=timezone.utc` を指定した aware datetime** に統一し、環境依存のローカル naive datetime 混在による 9 時間の時差誤認や締切判定の狂いを完全に防止する。
    * **秒オブジェクト形式 (`{"epochSecond": 1712000000, "nano": 0}`)**: 課題 API (`assignment/my.json`) などで利用。`datetime.fromtimestamp(raw["epochSecond"], tz=timezone.utc)` で変換。
    * **ミリ秒数値形式 (`1712000000000`)**: クイズ API やお知らせ API で利用。$10^{11}$ を超える数値はミリ秒と判定し、`raw / 1000` を `fromtimestamp(..., tz=timezone.utc)` に渡す。
    * **秒数値形式 (`1712000000`)**: 10桁前後の整数・小数は秒単位として変換。
@@ -2623,18 +2623,18 @@ def parse_course_contents(
 
 ### 5.2 要求される MCP ツール一覧 & ポリシー適用対応
 
-実装者は、Sakai API クライアント（`src.client.sakai_client: SakaiClient`）、セッション検証（`src.auth.session_checker`）、および設定 GUI（`src.gui.settings_window`）の各機能をラップし、データ返却直前にポリシーフィルタ（`src.policy.policy_filter`）を適用した上で、以下の MCP ツール群（`@mcp.tool()`）を実装・公開することを要求します。
+本サーバーの実装では、Sakai API クライアント（`src.client.sakai_client: SakaiClient`）、セッション検証（`src.auth.session_checker`）、および設定 GUI（`src.gui.settings_window`）の各機能をラップし、データ返却直前にポリシーフィルタ（`src.policy.policy_filter`）を適用した上で、以下の MCP ツール群（`@mcp.tool()`）を実装・公開します。
 
 | MCP ツール名 | 取得元モジュール & 関数 | 適用するポリシーフィルタ (`src.policy.policy_filter`) | 役割 / 要求される引数・振る舞い |
 | :--- | :--- | :--- | :--- |
 | **`list_courses`** | `src.client.sakai_client:`<br/>`SakaiClient.get_courses` | `filter_courses(courses)` | **履修・所属講義一覧を取得**。<br/>- `favorites_only: bool = True` (お気に入り講義優先、未設定時は全講義にフォールバック) |
 | **`get_assignments`** | `src.client.sakai_client:`<br/>`SakaiClient.get_assignments` | `filter_tasks(tasks)` | **課題一覧または個別課題詳細を取得**。<br/>- `site_id: str \| None = None` (講義絞り込み)<br/>- `assignment_id: str \| None = None` (個別課題抽出)<br/>- `favorites_only: bool = True`<br/>- `include_details: bool = True` (指示文・添付ファイル詳細を含めるか) |
 | **`get_quizzes`** | `src.client.sakai_client:`<br/>`SakaiClient.get_quizzes` | `filter_tasks(tasks)` | **小テスト・クイズ一覧を取得**。<br/>- `site_id: str \| None = None`<br/>- `favorites_only: bool = True`<br/>- 対象講義の SAMIGO API を並行取得して統合。<br/>- ※Sakai 仕様上、全テストが未受験判定となります。 |
-| **`get_upcoming_deadlines`** | `src.client.sakai_client:`<br/>`SakaiClient.get_upcoming_deadlines` | `filter_tasks(tasks)` | **直近の未提出課題・テストを締切順に統合取得**。<br/>- `days: int \| None = None` (何日先までの締切を対象とするか。未指定時は動的に最新の `Config.DEFAULT_DEADLINE_DAYS` を適用)<br/>- `favorites_only: bool = True`<br/>- AI が「今週の課題ある？」と尋ねられた際の第一選択ツール。 |
+| **`get_upcoming_deadlines`** | `src.client.sakai_client:`<br/>`SakaiClient.get_upcoming_deadlines` | `filter_tasks(tasks)` | **直近の未提出課題・テストを締切順に統合取得**。<br/>- `days: int \| None = None` (何日先までの締切を対象とするか。未指定時は動的に最新の `Config.DEFAULT_DEADLINE_DAYS` を適用)<br/>- `favorites_only: bool = True`<br/>- ユーザーから「今週の課題ある？」と尋ねられた際の第一選択ツール。 |
 | **`get_announcements`** | `src.client.sakai_client:`<br/>`SakaiClient.get_announcements` | `filter_announcements(announcements)` | **お知らせ・連絡事項一覧または個別詳細を取得**。<br/>- `site_id: str \| None = None`<br/>- `announcement_id: str \| None = None`<br/>- `n: int \| None = None` (取得件数上限。未指定時は最新の `Config.DEFAULT_ANNOUNCEMENT_LIMIT` を適用)<br/>- `favorites_only: bool = True`<br/>- `include_details: bool = True` |
 | **`get_calendar_events`** | `src.client.sakai_client:`<br/>`SakaiClient.get_calendar_events` | `filter_calendar_events(events)` | **カレンダー予定・イベント一覧を取得**。<br/>- `site_id: str \| None = None`<br/>- `start_date: str \| None = None` (ISO 8601 文字列。ツール層で datetime にパース)<br/>- `end_date: str \| None = None`<br/>- `event_type: str \| None = None` |
 | **`get_course_materials`** | `src.client.sakai_client:`<br/>`SakaiClient.get_course_materials` | `filter_course_materials(materials, site_id)` | **指定講義の授業資料・配布ファイル一覧を取得**。<br/>- `site_id: str` (必須)<br/>- `files_only: bool = False` (ファイルのみかフォルダも含めるか) |
-| **`get_course_dashboard`** | `src.client.sakai_client:`<br/>`SakaiClient.get_course_dashboard` | `filter_dashboard(dashboard)` | **指定講義の総合状況（課題・テスト・お知らせ・資料）を 1 発で並行取得**。<br/>- `site_id: str` (必須)<br/>- AI が「この講義の状況を全部教えて」と言われた際の最適ツール。 |
+| **`get_course_dashboard`** | `src.client.sakai_client:`<br/>`SakaiClient.get_course_dashboard` | `filter_dashboard(dashboard)` | **指定講義の総合状況（課題・テスト・お知らせ・資料）を 1 発で並行取得**。<br/>- `site_id: str` (必須)<br/>- ユーザーから「この講義の状況を全部教えて」と求められた際の最適ツール。 |
 | **`download_material`** | `src.client.sakai_client:`<br/>`SakaiClient.download_material` | `check_download_allowed_by_url(url)` | **講義資料や課題添付ファイルをダウンロード**。<br/>- `url: str` (ダウンロード対象の Sakai 相対/絶対 URL)<br/>- `save_path: str` (ローカル保存先パス。必須)<br/>- 戻り値: ダウンロード成功メッセージと絶対パス、サイズ文字列。 |
 | **`open_settings`** | `src.server:`<br/>`open_settings` (MCPツール) | *(フィルタ不要)* | **ユーザー設定画面 (WebView GUI) を別プロセスで起動**。<br/>- 引数なし。<br/>- `subprocess.Popen` により別プロセスで `--settings` を起動するため、MCP 通信 (stdio) を一切ブロックせず設定中も AI と対話可能。<br/>- 設定保存後は `Config.get_course_policy()` の mtime 動的検知により即時反映される。 |
 | **`get_settings`** | `src.config:`<br/>`Config.load` | *(フィルタ不要)* | **現在の設定一覧（ホスト名・講義別ポリシー等）を取得**。<br/>- 引数なし。<br/>- ポリシーによる制限理由の確認や、ユーザーへの設定変更案内時に利用。 |
@@ -2644,7 +2644,7 @@ def parse_course_contents(
 
 ### 5.3 サーバーエントリポイント (`src/server.py: main()`)
 
-プロセス全体の初期化・エントリポイントは以下の通り `main()` に実装します。
+プロセス全体の初期化およびエントリポイントとなる処理は、以下のように `main()` 関数へ実装します。
 
 ```python
 import argparse
@@ -2933,7 +2933,7 @@ def check_download_allowed_by_url(url: str) -> None:
 ## 6. 設定管理 & ユーザー設定 GUI (`src/config.py`, `src/gui/`)
 
 本モジュールは、Sakai の接続ホスト名、各種ファイルパス・定数、および講義ごとの AI 利用ポリシーを一元管理し、ユーザーが直感的に設定変更できる軽量 WebView GUI 画面を提供します。
-`from src.config import Config` により、どのモジュールからも `Config.SAKAI_HOST` や `Config.AUTH_COOLDOWN_SECONDS` のように統一アクセスできます。
+`from src.config import Config` により、どのモジュールからも `Config.SAKAI_HOST` や `Config.AUTH_COOLDOWN_SECONDS` のように統一的なアクセスが可能です。
 
 ---
 
@@ -2973,7 +2973,7 @@ def check_download_allowed_by_url(url: str) -> None:
 #### 講義別 AI 利用ポリシー仕様 (`AIPolicyMode`)
 
 各講義におけるデータの機密性・著作権保護および学習目的に応じ、以下の 4 段階の利用権限をサポートします。
-**セキュリティおよび著作権保護の観点（Secure by Default 原則）に基づき、新規講義および未設定時のデフォルト権限は `TEXT_ONLY`（強: ファイルDL禁止）が自動適用されます。**
+**セキュリティおよび著作権保護の観点（Secure by Default 原則）に基づき、新規講義および未設定時のデフォルト権限として `TEXT_ONLY`（強: ファイルDL禁止）を自動適用します。**
 
 | 権限レベル (Enum) | 説明 |
 | :--- | :--- |
@@ -3161,7 +3161,7 @@ class Config:
 
 * **基本設計思想**:
   * **設定画面を開く前に全データを同期取得**: 設定画面のウィンドウを起動する前に、Python 側で「セッション確認 $\rightarrow$ 必要ならログイン $\rightarrow$ 全講義一覧取得 $\rightarrow$ `config.json` とマージ」を一連の処理として完了させ、**単一の UI 用 JSON データ（`SettingsUIData`）を構築してから WebView2 ウィンドウを起動** します。
-  * **多重 GUI 起動の防止**: これにより、設定画面が開いている最中に別のログインウィンドウを開くような GUI スレッド競合・多重起動を完全に防止します。
+  * **多重 GUI 起動の防止**: 設定画面を開いている最中に別のログインウィンドウが開くような GUI スレッド競合や多重起動を完全に防止します。
   * **UI 開発の独立性 & テスト容易性**: データ構築ロジック（`data_builder.py`）は GUI ライブラリに一切依存しないため単体テストが容易であり、フロントエンド担当者はダミー JSON を用いてブラウザ単体で独立開発が可能です。
 
 ---
@@ -3469,7 +3469,7 @@ def show_initial_setup_window() -> str | None:
 
 ### 7.1 配布パッケージング仕様 (Portable Python Distribution)
 
-本プロジェクトでは、学生が Python の事前インストールなしですぐに使える利便性を確保しつつ、セキュリティ上の課題（アンチウイルスの誤検知や不透明な実行ファイルへの警戒感）を回避するため、**公式ポータブル Python ランタイムを同梱するディレクトリパッケージ配布方式** を採用します。
+本プロジェクトでは、学生が Python を事前インストールすることなく即座に利用できる利便性を確保しつつ、セキュリティ上の課題（アンチウイルスによる誤検知や不透明な実行ファイルへの警戒感）を回避するため、**公式ポータブル Python ランタイムを同梱するディレクトリパッケージ配布方式** を採用します。
 
 ```mermaid
 flowchart TD
@@ -3504,7 +3504,7 @@ flowchart TD
    * PyInstaller などの単一 `.exe` 化ツールは、ブートローダの挙動がマルウェアに類似するため、Windows Defender や大学推奨のウイルス対策ソフト（Trend Micro, Symantec 等）によって誤検知・自動削除される事例が多発します。
    * 公式の Embeddable Python / standalone ビルドを利用することで、バイナリは Python 公式の署名済み・信頼された実行ファイルとなり、誤検知のリスクを減らします。
 2. **コードの透明性と安心感**:
-   * `src/` ディレクトリ内に Python ソースコードがそのまま配置されるため、ユーザーや大学管理者が挙動をいつでも確認・監査でき、不審なマルウェアではないという心理的安心感を提供できます。
+   * `src/` ディレクトリ内に Python ソースコードがそのまま配置されるため、ユーザーや大学管理者が挙動をいつでも確認・監査でき、不審なマルウェアではないという安心感を得られます。
 3. **ゼロ・インストール (Zero Setup)**:
    * 配布 ZIP を展開するだけで、必要なライブラリ（`httpx`, `mcp`, `pydantic`, `pywebview` 等）が内蔵されたポータブル Python から MCP サーバーが stdio 起動します。
 
