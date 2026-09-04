@@ -1,196 +1,148 @@
-# 開発者向け Sakai-Tasks-MCP ガイド
+# Sakai-Tasks-MCP システム解説書
 
-## 1. 完成品がどう動くかの説明書
+## 1. プロジェクトの目的
 
-本プロジェクトのゴールは、**「AI アシスタント（Claude Desktop, Cursor 等）が、ユーザーの代わりに大学の Sakai（LMS）から課題・テスト・お知らせ・講義資料を安全に取得・要約できるようにする」** ことです。
+**`sakai-tasks-mcp`** は、大学等の教育機関で広く導入されている LMS（Learning Management System）「Sakai」と、デスクトップ上の AI アシスタント（Claude Desktop, Cursor 等）を **Model Context Protocol (MCP)** を介して安全に接続するデスクトップ MCP サーバーである。
+
+ユーザーが AI アシスタントと自然言語で対話することにより、Sakai LMS 内のタスクや重要連絡をオンデマンドで取得・要約し、以下の機能を提供する。
+
+* **直近締切の自動抽出**: 直近に提出期限を迎える課題および小テストの一括把握
+* **課題要件の迅速な確認**: 課題の指示文や提出要件のピンポイント抽出および要約
+* **重要アナウンスの集約**: 全履修講義における休講・教室変更・緊急連絡の要約
+* **講義総合ダッシュボードの生成**: 講義ごとの課題・テスト・連絡・資料の一括レポート作成
+* **セキュア・バイ・デフォルトの適用**: 講義ごとの厳格な AI 利用権限制御による著作権・プライバシー保護
 
 ```mermaid
 flowchart LR
-    User["学生 / ユーザー"] <-->|"対話"| AI["AI アシスタント<br/>(Claude Desktop 等)"]
-    AI <-->|"stdio (MCP Protocol)"| Server["sakai-tasks-mcp"]
+    User["ユーザー"] <-->|"自然言語による対話"| AI["AI アシスタント<br/>(Claude Desktop / Cursor)"]
+    AI <-->|"stdio (MCP Protocol / JSON-RPC)"| Server["sakai-tasks-mcp<br/>(本システム)"]
     Server <-->|"REST API / HTML"| Sakai["大学 Sakai LMS"]
-    Server -.->|"セッション切れ時に<br/>一時ポップアップ"| AuthUI["認証 / 設定 WebView"]
+    Server -.->|"セッション失効時のみ<br/>裏で自動再認証"| AuthUI["OS 標準 WebView<br/>(Edge WebView2 / WebKit)"]
 ```
 
 ---
 
-### ユーザー目線での利用フロー
+## 2. 動作機構と処理フロー
 
-1. **直近締切の確認**:
-   * **ユーザー**: 「今週締め切りの課題や小テストはある？」
-   * **AI**: `get_upcoming_deadlines` ツールを実行し、「2026/09/05 23:59 締切の『人工知能基礎 レポート課題3』があります」と回答。
-2. **課題内容・指示文の確認**:
-   * **ユーザー**: 「そのレポート課題3の文字数や提出要件を教えて」
-   * **AI**: `get_assignments` ツールで詳細指示文を取得し、要点を分かりやすく整理。
-3. **休講・重要連絡の確認**:
-   * **ユーザー**: 「直近で休講や教室変更のお知らせはある？」
-   * **AI**: `get_announcements` ツールでお知らせ一覧を取得し、最新の連絡を要約。
-4. **講義総合ダッシュボードの確認**:
-   * **ユーザー**: 「ソフトウェア工学演習の状況を全部教えて」
-   * **AI**: `get_course_dashboard` ツールを実行し、未提出課題・テスト・最新連絡・授業資料を 1 発でまとめて報告。
-5. **講義ごとの AI 権限設定（設定 GUI の起動）**:
-   * **ユーザー**: 「設定画面を開いて」
-   * **AI**: `open_settings` ツールを実行し、デスクトップ上に設定画面（ポップアップ）を表示。ユーザー自身が「この講義は資料読み込みを許可する」といった設定を画面上で変更・保存。
-
----
-
-### システム内部の動作フロー
-
-* **通常時**:
-  AI から要求が届くと、ローカルに暗号化保存されたセッション情報（Cookie）を用いて Sakai Direct REST API を叩き、ポリシーフィルタを通過させた安全な構造化データ（JSON Schema）を即座に AI へ返却します（約 0.2〜0.5 秒）。
-* **セッション切れ・初回実行時**:
-  Cookie の期限切れ（24 時間放置等）を検知すると、OS 備え付けのブラウザエンジン（Edge WebView2）が一時起動し、大学 SSO の永続 Cookie を利用して **0.5 秒で自動素通り認証**（または手動ログイン）を行い、新しいセッションを暗号化保存して本来のリクエストに復帰します。
-
----
-
-## 2. 使用技術 & ライブラリの説明
-
-本プロジェクトで採用している主要な技術・ライブラリの役割と選定理由は以下の通りです。
-
-| 技術 / ライブラリ | 本プロジェクトでの役割 & 選定理由 |
-| :--- | :--- |
-| **FastMCP (`mcp`)** | **MCP サーバーフレームワーク**: AI モデルと Python プログラムを繋ぐインターフェース。関数に `@mcp.tool()` デコレータを付与するだけで、stdio 経由で AI 向けツール API を公開可能。 |
-| **`httpx`** | **非同期 HTTP クライアント**: `async/await` 構文を用いて、Sakai の Direct REST API や Portal HTML と高速かつ非同期に HTTP 通信を実行。 |
-| **`Pydantic v2`** | **データモデル定義 & バリデーション**: Sakai API レスポンスの防御的パース、型安全性確保、および AI 向け JSON Schema の自動生成を担当。 |
-| **`pywebview`** | **OS 標準ブラウザ (WebView) 連携**: Windows (Edge WebView2) や macOS (WebKit) のブラウザエンジンを呼び出し、大学 SSO 認証の自動素通りや設定 GUI 画面のポップアップ表示を担当。 |
-| **Embeddable Python /<br/>python-build-standalone** | **ポータブルランタイム配布方式**: Python がインストールされていない学生 PC でも、ZIP を解凍するだけで即動作するゼロ・セットアップ環境を提供（アンチウイルス誤検知を完全回避）。 |
-
----
-
-## 3. Sakai のエンドポイント & データ取得の仕組み
-
-Sakai には公式に **Direct REST API（EntityBroker）** が備わっており、特別なスクレイピングを行わなくても通常の JSON API を叩くだけでデータを取得できます。
-
-### 主要エンドポイント一覧
-
-| エンドポイント / URL | 用途 | 取得形式 | 担当パーサー (`src/client/parsers/`) |
-| :--- | :--- | :--- | :--- |
-| **`/direct/site.json`** | 履修・所属講義一覧 | REST JSON | `course_parser.py` |
-| **`/portal`** (HTML) | お気に入り（★）講義の抽出 | HTML DOM | `favorite_parser.py` (BeautifulSoup) |
-| **`/direct/assignment/my.json`** | 全講義の課題一覧（締切・タイトル） | REST JSON | `assignment_parser.py` |
-| **`/direct/sam_pub/context/{siteId}.json`** | 指定講義のテスト・クイズ一覧 | REST JSON | `quiz_parser.py` |
-| **`/direct/announcement/user.json`** | 全講義のお知らせ一覧 (`?n=...`) | REST JSON | `announcement_parser.py` |
-| **`/direct/calendar/my.json`** | カレンダー予定・イベント一覧 | REST JSON | `calendar_parser.py` |
-| **`/direct/content/site/{siteId}.json`** | 授業資料・配布ファイル一覧 | REST JSON | `content_parser.py` |
-| **`/direct/session/current.json`** | セッション有効性確認 | REST JSON | `session_checker.py` (`userEid` 判定) |
-
----
-
-### お気に入り講義の抽出ロジック（Comfortable Sakai の知見）
-
-* Sakai 公式の `/direct/site.json` には「お気に入り（ピン留め）」を判別するフラグが含まれていません。
-* そこで、京都大学等で使われている Comfortable Sakai の知見に基づき、ログイン済み Cookie で `/portal` の HTML を取得し、`.fav-sites-entry` クラスの DOM 要素から **★お気に入り講義 ID を高速に抽出してマージ** します。
-
----
-
-### API データを扱う上での 2 大注意点
-
-1. **日時の単位の不統一 (秒 vs ミリ秒)**:
-   * 課題 (`/assignment`): 秒単位のオブジェクト `{ "epochSecond": 1712600000, "nano": 0 }`
-   * テスト (`/sam_pub`)・お知らせ・カレンダー・教材: ミリ秒数値 `1712600000000`
-   * `parsers/base.py` の `parse_datetime` 共通関数で自動判定・正規化します。
-2. **ID プロパティ名の揺れ**:
-   * 講義・課題は `id`、テストは `publishedAssessmentId`、お知らせは `announcementId` です。これらは各パーサー内で共通データモデル（`SakaiTask` 等）に詰め替えて吸収します。
-
----
-
-## 4. 認証システム & セキュリティ設計
-
-### ① Cookie ベースのセッション管理 & 失効検知
-
-Sakai API は **`SAKAI2SESSIONID` Cookie** でセッションを識別します。
-* **24 時間スライディング・タイムアウト**: 最後のアクセスから 24 時間操作がないと失効します。
-* **特殊な失効挙動**: セッション失効時でも `401 Unauthorized` ではなく、**`200 OK` で `{"userEid": null}` を返す** ため、`userEid is not None` で真のログイン状態を判定します。
-* **暗号化保存**: Cookie は Windows DPAPI（または Fernet）を用いて `session.enc` に安全に保存されます。
-
----
-
-### ② 大学統合認証（SSO / Microsoft 365）と WebView 自動素通り
+本システムは、AI アシスタントからのツール要求を受信してから最終的な応答を返却するまでの **一連の処理フロー** に基づき、高凝集・疎結合に設計された各モジュールが順次連携して動作する。
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as ユーザー / WebView2
-    participant Sakai as ① Sakai (/portal/login)
-    participant IdP as ② 大学認証基盤 (IdP / Microsoft 365)
+    actor User as ユーザー
+    actor AI as AI アシスタント
+    participant Server as ① MCP サーバー層 (server.py)
+    participant Auth as ② 認証・セッション層 (src/auth/)
+    participant Client as ③ API クライアント層 (src/client/)
+    participant Parser as ④ パーサー層 (src/client/parsers/)
+    participant Policy as ⑤ ポリシー層 (src/policy/)
+    participant Sakai as 大学 Sakai LMS
 
-    User->>Sakai: ① ログインURLにアクセス (/portal/login)
-    Sakai-->>User: ② 大学の認証画面へリダイレクト (SAML 要求)
-    User->>IdP: ③ 大学の認証サーバーへアクセス (永続 Cookie 送信)
-
-    alt パターン A: 普段の再認証（IdP Cookie 有効 / 0.5 秒素通り）
-        Note over IdP: IdP 側のログイン記憶 Cookie が有効
-        IdP-->>User: 画面入力なしで認証成功トークンを即返却 (JS 自動 POST)
-        User->>Sakai: ④ 認証結果を Sakai へ送信
-        Sakai-->>User: ⑤ 新しい SAKAI2SESSIONID を発行（画面非表示で自動完了!）
-    else パターン B: 初回・完全失効時
-        Note over IdP: ログイン記憶なし
-        IdP-->>User: パスワード・2段階認証画面を表示
-        User->>IdP: ユーザーが手動で認証情報を入力
-        IdP-->>User: 認証成功トークン返却
-        User->>Sakai: ④ 認証結果を Sakai へ送信
-        Sakai-->>User: ⑤ 新しい SAKAI2SESSIONID を発行（完了!）
+    User->>AI: 「今週締切の課題はある？」
+    AI->>Server: ツール呼び出し要求 (get_upcoming_deadlines)
+    Server->>Client: 課題データ取得要求
+    Client->>Auth: 有効な Cookie の要求 (get_valid_cookies)
+    
+    alt セッション有効時
+        Auth-->>Client: キャッシュされた Cookie を即時返却
+    else セッション失効時
+        Auth->>Sakai: WebView を起動し SSO 永続 Cookie で 0.5 秒自動再認証
+        Auth-->>Client: 新規 Cookie を暗号化保存して返却
     end
-```
 
-* **自動素通り (0.5秒)**: 固定プロファイル（`webview_profile/`）を指定して WebView2 を起動するため、IdP の永続 Cookie が残り、**画面を出さずに裏で 0.5 秒で新セッションを取得** できます。
-* **多重起動の排他制御 (`asyncio.Lock`)**: AI から複数ツールが同時に呼ばれても、ログイン画面が多重に開くのを完全に防止します。
-
----
-
-### ③ 講義別 AI 利用ポリシー & 設定 GUI
-
-#### 1. 講義ごとの 4 段階権限ポリシー
-
-セキュリティおよび著作権保護の観点（**Secure by Default 原則**）に基づき、新規・未設定講義はすべて **`TEXT_ONLY`（強: ファイルDL禁止）** が自動適用されます。
-
-| 権限レベル (Enum) | 説明 |
-| :--- | :--- |
-| **`ALLOW_ALL`** (全て) | **完全アクセス**: 資料ダウンロード・課題指示文・お知らせ・締切すべて利用可能。 |
-| **`TEXT_ONLY`** (強 / ★デフォルト) | **テキストのみ**: 課題指示文やお知らせ本文は取得できるが、PDF・スライド等のファイル実体ダウンロードを禁止。 |
-| **`SCHEDULE_ONLY`** (弱) | **締切・予定のみ**: 課題指示文や本文を `[講義ポリシーにより非表示]` とマスクし、締切管理のみ許可。 |
-| **`BLOCKED`** (無効) | **完全除外**: 講義一覧を含め、その講義の存在自体を AI ツールから完全に隠蔽。 |
-
-```json
-{
-  "sakai_host": "tact.ac.thers.ac.jp",
-  "policies": {
-    "2024_01_AI101": "allow_all",
-    "2024_01_LAW202": "text_only",
-    "2024_01_SE303": "schedule_only"
-  },
-  "default_deadline_days": 30,
-  "default_announcement_limit": 7
-}
+    Client->>Sakai: Direct REST API 通信 (GET /assignment/my.json)
+    Sakai-->>Client: 生データ (JSON / HTML)
+    Client->>Parser: 生データの正規化・クレンジング処理
+    Parser-->>Client: 共通データモデル (list[SakaiTask])
+    Client-->>Server: モデル一覧の返却
+    Server->>Policy: 講義別 AI ポリシー適用 (filter_tasks)
+    Policy-->>Server: マスキング適用済みデータ
+    Server-->>AI: 構造化 JSON を返却 (stdio)
+    AI-->>User: 自然言語による回答を作成・提示
 ```
 
 ---
 
-#### 2. 設定 GUI の 3 ファイル責務分離 (`src/gui/`)
-
-設定画面は単一責任の原則（SRP）に基づき、以下の 3 ファイルに分離されています。
-
-1. **`data_builder.py`**: Sakai から講義一覧を取得し、既存ポリシーとマージしてお気に入り優先にソートした単一 JSON（`SettingsUIData`）を構築（GUI に依存しない純粋関数）。
-2. **`api.py`**: JavaScript と Python の通信ブリッジ（`get_initial_data`, `save_settings`）。
-3. **`settings_window.py`**: データを注入して `pywebview` ウィンドウを起動する薄いコントローラー。
-
-これにより、**設定画面を開く前にすべてのデータ準備が完了するため、GUI の多重起動や競合が起きず**、フロントエンド担当者もブラウザ単体で独立モック開発が可能です。
+### 2.1 要求受付と通信ルーティング（MCP サーバー層: `src/server.py`）
+1. AI クライアント（Claude Desktop 等）は、標準入出力（stdio）経由で JSON-RPC 形式のツール呼び出し（例: `get_upcoming_deadlines`, `get_course_dashboard` 等）を送信する。
+2. FastMCP フレームワークを実装した `server.py` がリクエストを受け付け、スキーマ検証を行った上で内部のデータ取得処理へルーティングする。
+3. **stdio の保護原則**: MCP プロトコルでは標準出力が JSON-RPC の通信チャネルとして占有されるため、システム内のすべてのログ・デバッグ出力は標準エラー出力（`stderr`）に統一して出力される。
 
 ---
 
-## 5. モジュール構成 & 実装の進め方
+### 2.2 セッション管理と自動再認証（認証層: `src/auth/`）
+Sakai API へのアクセスにはログイン済みのセッション Cookie（`SAKAI2SESSIONID`）が必要となる。本層は外部モジュールに対してセッション管理の詳細を隠蔽し、常に有効な Cookie を提供する。
 
-```text
-sakai-tasks-mcp/
-├── src/
-│   ├── models.py             # 共通 Pydantic モデル定義
-│   ├── config.py             # 設定・定数管理 (Config, AIPolicyMode)
-│   ├── auth/                 # 認証・セッション管理 (session_manager, webview_auth 等)
-│   ├── client/               # Sakai API クライアント (sakai_client, parsers/*)
-│   ├── policy/               # 講義別 AI ポリシーフィルタ (policy_filter)
-│   ├── gui/                  # 設定 GUI (data_builder, api, settings_window, templates)
-│   └── server.py             # FastMCP サーバー本体 (stdio エントリポイント)
-└── tests/                    # 単体・結合テスト群
-```
+1. **セッション有効性判定 (`session_checker.py`)**:
+   Sakai のセッション確認エンドポイント（`/direct/session/current.json`）に対し、ローカルに保存された Cookie を用いて疎通確認を行う。`userEid` が有効な値を持つか否かでログイン状態を判定する。
+2. **WebView による自動素通り再認証 (`webview_auth.py`)**:
+   セッション切れ検知時、OS 組み込みのブラウザエンジン（Windows: Edge WebView2 / macOS: WebKit）をバックグラウンドで起動する。固定プロファイルに保持された大学 SSO（IdP / Microsoft 365 等）の永続 Cookie を利用し、**画面を表示することなく約 0.5 秒で自動再認証** を完了する（※初期実行時など SSO Cookie 自体が存在しない場合のみ、ユーザー入力用ログイン画面を前面表示する）。
+3. **暗号化ストレージ (`cookie_storage.py`)**:
+   抽出された Cookie 群は、OS の資格情報ストアと連携した共通鍵暗号（Fernet / AES-128-CBC）により暗号化され、ローカルストレージへ安全に保存される。
 
-各ファイルを実装する際は、**`docs/architecture.md` の該当セクションおよび第 1〜3 章** を参照することで、他のモジュールに迷わずに独立して開発・テストを進めることができます。
+---
+
+### 2.3 データ取得と通信制御（API クライアント層: `src/client/`）
+有効な Cookie を付与し、Sakai LMS に対する非同期 HTTP 通信（`httpx`）を実行する。
+
+* **Direct REST API (EntityBroker) の利用**:
+  課題（`/direct/assignment/my.json`）、小テスト（`/direct/sam_pub/...`）、お知らせ（`/direct/announcement/...`）等の公式 REST エンドポイントに対して非同期通信を行い、JSON データを高速に一括取得する。
+* **お気に入り講義の補正抽出**:
+  Sakai 公式の講義一覧 API には「お気に入り（ピン留め）」フラグが含まれないため、ポータル画面（`/portal`）の HTML から DOM 解析によりお気に入り講義 ID を抽出し、API データと統合する。
+* **Singleflight 機構とキャッシュ**:
+  同一エンドポイントに対する並行リクエストの合流処理（Singleflight）およびインメモリキャッシュ（TTL）を備え、Sakai サーバーへの負荷集中を防止する。
+
+---
+
+### 2.4 データ正規化とモデル変換（パーサー層: `src/client/parsers/` & モデル層: `src/models.py`）
+Sakai API の生レスポンスには、日時の単位不統一（秒単位とミリ秒単位の混在）、不要な HTML タグの混入、プロパティ命名規則の揺れが存在する。
+
+各パーサーは外部副作用を持たない**純粋関数**として設計されており、以下の正規化を行ってシステム共通の Pydantic v2 モデル（`SakaiTask`, `CourseSite`, `Announcement`, `CourseMaterial` 等）へ変換する。
+
+* **日時形式の標準化**: ISO 8601（タイムゾーン付き標準フォーマット）への変換
+* **HTML タグの除去**: 指示文・お知らせ本文からの不要タグ除去とテキスト整形
+* **共通タスクモデルへの統合**: 通常課題と小テストの異なる API 構造を統合タスクモデル（`SakaiTask`）に吸収
+
+---
+
+### 2.5 セキュリティ・著作権ポリシー適用（ポリシー層: `src/policy/`）
+正規化されたデータに対し、講義ごとに定義された AI 利用権限ポリシーを適用し、データのフィルタリングおよびマスキングを行う。
+
+* **Secure by Default 原則**:
+  新規登録された講義および未設定の講義には、自動的に **`TEXT_ONLY`（ファイルダウンロード禁止）** が適用される。教員の講義資料ファイルが意図せず外部 AI に送信される事故を構造的に排除する。
+* **4 段階の権限レベル**:
+  | 権限レベル (Enum) | 動作仕様 |
+  | :--- | :--- |
+  | **`ALLOW_ALL`** | 完全アクセス。資料ファイルのダウンロード、課題指示文、お知らせ、締切すべてを利用可能。 |
+  | **`TEXT_ONLY`** (デフォルト) | テキストのみ。課題指示文やお知らせ本文は取得可能だが、PDF・Office 文書等のファイル実体ダウンロードを禁止。 |
+  | **`SCHEDULE_ONLY`** | 締切・予定のみ。課題指示文や本文を `[非表示]` とマスキングし、締切日時のみ利用可能。 |
+  | **`BLOCKED`** | 完全除外。講義一覧を含め、当該講義の存在自体を AI ツールから完全に隠蔽。 |
+
+---
+
+### 2.6 レスポンス返却および設定管理 GUI（設定・GUI 層: `src/gui/`, `src/config.py`）
+
+1. **AI への返却**:
+   ポリシー適用後の安全な構造化 JSON データが FastMCP を通じて AI クライアントへ返却され、AI がユーザー向けの回答を生成する（通常 0.2〜0.5 秒で完了）。
+2. **ユーザー設定 GUI (`src/gui/`)**:
+   ユーザーが講義ごとの権限ポリシーを変更する際、OS 標準の WebView ウィンドウを起動して設定画面を表示する。
+   * **`data_builder.py`**: 講義一覧と設定ファイルを事前にマージし、画面描画用の統合データモデルを構築する。
+   * **`settings_window.py`**: WebView ウィンドウを起動し、初期データを即座に画面へ注入する。
+   * **`api.py`**: 画面上の設定変更を受け取り、ローカルの `config.json` に即時反映する。
+
+---
+
+### 2.7 モジュール構成と処理ステップ対応一覧
+
+| ディレクトリ / ファイル | 処理フロー上のステップ | 主要な責務 |
+| :--- | :--- | :--- |
+| **`src/server.py`** | 2.1 / 2.6 | FastMCP サーバーのエントリポイント、ツール公開、通信調停 |
+| **`src/auth/`** | 2.2 | Cookie の暗号化保存、セッション有効性検証、WebView 自動素通り認証 |
+| **`src/client/`** | 2.3 | Sakai Direct REST API / Portal HTML との非同期 HTTP 通信 |
+| **`src/client/parsers/`** | 2.4 | 生データのクレンジング、日時正規化、共通データモデル変換 |
+| **`src/models.py`** | 2.4 | Pydantic v2 による型安全なシステム共通エンティティ定義 |
+| **`src/policy/`** | 2.5 | 講義別 AI 利用ポリシーに基づくデータのマスキングおよび除外 |
+| **`src/gui/`** | 2.6 (設定変更時) | 講義別権限設定を行うためのデスクトップ GUI 画面の提供 |
+| **`src/config.py`** | 全体 | 設定ファイル（`config.json`）の管理およびシステム定数の定義 |
+| **`scripts/`** | 配布・実行 | ポータブル Python 同梱パッケージのビルドおよび起動スクリプト |
+
