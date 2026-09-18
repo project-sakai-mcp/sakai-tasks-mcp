@@ -47,7 +47,7 @@ pip install -r requirements.txt
 本プロジェクトでは、1ファイルに対し 1つの Issue を用意しています。
 
 ### 1. 担当 Issue の選択 & Assignees 登録
-* 実装したいファイルの Issue を選び、右側メニューの **Assignees（担当者）** に自分を設定します（※すでに担当者がいる Issue は選べません）。
+* 本ドキュメント末尾の「開発のしやすさ（難易度表）」を参考に実装したいファイルの Issue を選び、右側メニューの **Assignees（担当者）** に自分を設定します（※すでに担当者がいる Issue は選べません）。
 
 ### 2. Issue からブランチを作成
 * GitHub の Issue 画面（右側 Development セクションの「Create a branch」等）から作業ブランチを作成します。
@@ -87,3 +87,41 @@ git push origin 31-feat-src-models
 
 * **stdio 汚染厳禁**:
   * 通常の `print()` 出力は MCP の標準入出力通信（JSON-RPC）を破壊します。デバッグやログ出力には必ず `logging` または `sys.stderr` を使用してください。
+
+---
+
+## 📊 開発のしやすさ（全29ファイル難易度表）
+
+`src/` ディレクトリ配下の全29ファイルにおける実装難易度および依存関係に基づく一覧です。**上から順に着手しやすくなっています。** 担当する Issue の選定にご活用ください。
+
+| 分類 | ファイル | 概要・役割 |
+| :--- | :--- | :--- |
+| **データ変換・定数** | `src/models.py` | 共通データモデル・Enum 定義（※作成済み） |
+| | `src/client/endpoints.py` | Sakai API のエンドポイント URL 定数定義 |
+| | `src/client/parsers/base.py` | 日時変換・HTML サニタイズ等の共通ユーティリティ |
+| | `src/client/parsers/announcement_parser.py` | お知らせ API の JSON を `Announcement` に変換 |
+| | `src/client/parsers/calendar_parser.py` | カレンダー API の JSON を `CalendarEvent` に変換 |
+| | `src/client/parsers/favorite_parser.py` | ポータル HTML からお気に入り講義一覧を抽出 |
+| | `src/client/parsers/course_parser.py` | 講義サイト一覧 API の JSON を `CourseSite` に変換 |
+| | `src/client/parsers/assignment_parser.py` | 課題 API の JSON を `SakaiTask`（課題）に変換 |
+| | `src/client/parsers/quiz_parser.py` | テスト・クイズ API の JSON を `SakaiTask`（クイズ）に変換 |
+| | `src/client/parsers/content_parser.py` | 授業資料・リソース API の JSON を `CourseMaterial` に変換 |
+| | `src/policy/policy_filter.py` | ポリシーに応じたデータのマスキング・除外処理 |
+| **設定・データ連携** | `src/config.py` | 設定ファイルの永続化（JSON 入出力）およびポリシー管理 |
+| | `src/gui/data_builder.py` | GUI 設定画面用の表示データ構築とソート処理 |
+| | `src/auth/cookie_storage.py` | セッション Cookie の暗号化（keyring / Fernet）と保存 |
+| | `src/auth/session_checker.py` | Sakai API へのセッション有効性確認リクエスト |
+| | `src/client/sakai_client.py` | 各パーサーを統括し Sakai REST API と通信するクライアント |
+| **パッケージ初期化**<br/>(Facade / 公開定義) | `src/__init__.py` | パッケージ初期化 |
+| | `src/policy/__init__.py` | ポリシーモジュールの公開関数 export |
+| | `src/client/parsers/__init__.py` | パーサー群の公開関数 export |
+| | `src/client/__init__.py` | クライアントモジュールの公開クラス export |
+| | `src/auth/__init__.py` | 認証モジュールの Facade export |
+| | `src/gui/__init__.py` | GUI モジュールの公開関数 export |
+| **GUI・HTML画面** | `src/gui/templates/initial_setup.html` | 初期セットアップ用 HTML 画面テンプレート |
+| | `src/gui/templates/settings.html` | 講義別ポリシー設定用 HTML 画面テンプレート |
+| | `src/gui/api.py` | GUI（WebView）と Python ロジック間の連携 API ブリッジ |
+| | `src/gui/settings_window.py` | 設定ダイアログウィンドウの表示・制御 |
+| **認証・システムコア** | `src/auth/webview_auth.py` | WebView2 による大学 SSO ログイン画面制御・Cookie 抽出 |
+| | `src/auth/session_manager.py` | 認証セッション全体の調停・非同期排他制御（Lock） |
+| | `src/server.py` | FastMCP サーバー本体。ツール公開と stdio 通信制御 |
