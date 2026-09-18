@@ -455,18 +455,30 @@ AI クライアントの設定ファイル（例: `claude_desktop_config.json`�
 
 ### 6.1 開発環境セットアップ
 
-```bash
-# 1. 仮想環境の作成と有効化
-python -m venv .venv
-source .venv/bin/activate   # Windows: .\.venv\Scripts\activate
+前提条件: **Python 3.10 以上**
 
-# 2. 依存パッケージのインストール
+```bash
+# 1. リポジトリのクローンと移動
+git clone https://github.com/project-sakai-mcp/sakai-tasks-mcp.git
+cd sakai-tasks-mcp
+
+# 2. 仮想環境の作成と有効化
+python -m venv .venv
+source .venv/bin/activate   # Windows (PowerShell): .\.venv\Scripts\Activate.ps1
+                            # Windows (cmd): .\.venv\Scripts\activate.bat
+
+# 3. 依存パッケージのインストール
 pip install -r requirements.txt
 ```
 
 #### ブランチ運用ルール
 * 本プロジェクトでは 1 ファイルに対して 1 つの Issue を割り当てています。
-* Issue から作業ブランチを作成する際は、**必ず `dev` ブランチをソース** とし、ブランチ名は `feat/<issue番号>-<issue名>`（例: `feat/1-src-server`）とします。
+* Issue から作業ブランチを作成する際は、**必ず `dev` ブランチをソース** とし、ブランチ名は `<issue番号>-feat-<issue名>`（例: `31-feat-src-models`）とします。
+* リモートでブランチ作成後、ローカルで作業ブランチに切り替えます:
+  ```bash
+  git fetch origin
+  git switch 31-feat-src-models
+  ```
 
 ---
 
