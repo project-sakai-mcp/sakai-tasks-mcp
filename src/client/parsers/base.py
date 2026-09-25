@@ -29,14 +29,18 @@ def parse_datetime(raw: Any) -> datetime | None:
 
     # 1. 辞書形式: {'epochSecond': 1712000000, 'nano': 0} または {'time': 1712600000000}
     if isinstance(raw, dict):
-        if "epochSecond" in raw:
+        if "epochSecond" in raw or "epoch_second" in raw:
             try:
-                sec = float(raw["epochSecond"])
-                nano = float(raw.get("nano", 0))
+                raw_sec = raw.get("epochSecond") if "epochSecond" in raw else raw.get("epoch_second")
+                sec = float(raw_sec)
+                raw_nano = raw.get("nano") if "nano" in raw else raw.get("nanos")
+                nano = float(raw_nano) if raw_nano is not None else 0.0
                 return datetime.fromtimestamp(sec + nano / 1e9, tz=timezone.utc)
             except (ValueError, TypeError, OverflowError, OSError):
                 return None
         if "time" in raw:
+            if raw["time"] is None:
+                return None
             return parse_datetime(raw["time"])
         return None
 
@@ -109,27 +113,34 @@ def clean_html_text(raw_html: str | None) -> str:
     if not raw_html.strip():
         return ""
 
-    # 1. 改行系タグの置換
-    text = re.sub(r"(?i)<br\s*/?>", "\n", raw_html)
-    text = re.sub(r"(?i)</(?:p|div|li|tr|h[1-6])>", "\n", text)
+    # 1. スクリプト・スタイルタグとその中身を除去
+    text = re.sub(r"(?is)<script[^>]*>.*?</script>", "", raw_html)
+    text = re.sub(r"(?is)<style[^>]*>.*?</style>", "", text)
 
-    # 2. 残りの HTML タグを除去
+    # 2. HTML コメントを除去
+    text = re.sub(r"(?s)<!--.*?-->", "", text)
+
+    # 3. 改行系タグの置換
+    text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    text = re.sub(r"(?i)</(?:p|div|li|tr|h[1-6]|table|blockquote|pre)>", "\n", text)
+
+    # 4. 残りの HTML タグを除去
     text = re.sub(r"<[^>]+>", "", text)
 
-    # 3. HTML 実体参照のデコード (&nbsp;, &lt;, &gt;, &amp; 等)
+    # 5. HTML 実体参照のデコード (&nbsp;, &lt;, &gt;, &amp; 等)
     text = html.unescape(text)
 
-    # 4. 特殊空白文字の正規化
+    # 6. 特殊空白文字の正規化
     text = text.replace("\xa0", " ")
 
     # 各行の末尾空白を除去
     lines = [line.rstrip() for line in text.splitlines()]
     text = "\n".join(lines)
 
-    # 5. 3行以上の連続する空行を2行（段落区切り）に圧縮
+    # 7. 3行以上の連続する空行を2行（段落区切り）に圧縮
     text = re.sub(r"\n{3,}", "\n\n", text)
 
-    # 6. 前後の余分な空白を除去
+    # 8. 前後の余分な空白を除去
     return text.strip()
 
 
@@ -148,8 +159,10 @@ def parse_attachments(
     Returns:
         list[Attachment]: 正規化された添付ファイル一覧
     """
-    if not raw_attachments:
+    if not raw_attachments or not isinstance(raw_attachments, list):
         return []
+
+    clean_host = host.removeprefix("https://").removeprefix("http://").rstrip("/")
 
     attachments: list[Attachment] = []
     for item in raw_attachments:
@@ -162,7 +175,7 @@ def parse_attachments(
                 full_url = raw_url
             else:
                 endpoint = raw_url if raw_url.startswith("/") else f"/{raw_url}"
-                full_url = f"https://{host}{endpoint}"
+                full_url = f"https://{clean_host}{endpoint}"
         else:
             full_url = None
 
@@ -186,8 +199,11 @@ def parse_attachments(
         else:
             att_id = name
 
-        # サイズ (int 換算)
-        raw_size = item.get("size") or item.get("size_bytes")
+        # サイズ (int 換算: 0 バイトのファイルも None にならず 0 として保持)
+        raw_size = item.get("size")
+        if raw_size is None:
+            raw_size = item.get("size_bytes")
+
         size_bytes: int | None = None
         if raw_size is not None:
             try:
