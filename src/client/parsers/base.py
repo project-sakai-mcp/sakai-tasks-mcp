@@ -27,21 +27,15 @@ def parse_datetime(raw: Any) -> datetime | None:
             return raw.replace(tzinfo=timezone.utc)
         return raw.astimezone(timezone.utc)
 
-    # 1. 辞書形式: {'epochSecond': 1712000000, 'nano': 0} または {'time': 1712600000000}
+    # 1. 辞書形式: {'epochSecond': 1712000000, 'nano': 0}
     if isinstance(raw, dict):
-        if "epochSecond" in raw or "epoch_second" in raw:
+        if "epochSecond" in raw:
             try:
-                raw_sec = raw.get("epochSecond") if "epochSecond" in raw else raw.get("epoch_second")
-                sec = float(raw_sec)
-                raw_nano = raw.get("nano") if "nano" in raw else raw.get("nanos")
-                nano = float(raw_nano) if raw_nano is not None else 0.0
+                sec = float(raw["epochSecond"])
+                nano = float(raw.get("nano") or 0.0)
                 return datetime.fromtimestamp(sec + nano / 1e9, tz=timezone.utc)
             except (ValueError, TypeError, OverflowError, OSError):
                 return None
-        if "time" in raw:
-            if raw["time"] is None:
-                return None
-            return parse_datetime(raw["time"])
         return None
 
     # 2. 数値 (秒またはミリ秒)
@@ -179,8 +173,8 @@ def parse_attachments(
         else:
             full_url = None
 
-        # ファイル名 (name または title、なければ URL パスから取得)
-        raw_name = item.get("name") or item.get("title") or ""
+        # ファイル名 (URL エンコードされている場合をデコード)
+        raw_name = item.get("name")
         if raw_name:
             name = urllib.parse.unquote(str(raw_name))
         elif full_url:
@@ -190,20 +184,11 @@ def parse_attachments(
         else:
             name = "attachment"
 
-        # ID
-        raw_id = item.get("id") or item.get("attachmentId")
-        if raw_id:
-            att_id = str(raw_id)
-        elif full_url:
-            att_id = full_url
-        else:
-            att_id = name
+        # 添付ファイル ID
+        att_id = str(item.get("id") or full_url or name)
 
-        # サイズ (int 換算: 0 バイトのファイルも None にならず 0 として保持)
+        # ファイルサイズ (0 バイトファイルも許容)
         raw_size = item.get("size")
-        if raw_size is None:
-            raw_size = item.get("size_bytes")
-
         size_bytes: int | None = None
         if raw_size is not None:
             try:
@@ -212,14 +197,8 @@ def parse_attachments(
                 size_bytes = None
 
         # MIME タイプ
-        content_type = (
-            item.get("type")
-            or item.get("contentType")
-            or item.get("mimeType")
-            or item.get("content_type")
-        )
-        if content_type is not None:
-            content_type = str(content_type)
+        raw_type = item.get("mimeType") or item.get("type")
+        content_type = str(raw_type) if raw_type is not None else None
 
         attachments.append(
             Attachment(
