@@ -261,7 +261,8 @@ class SakaiClient:
                 async with self._get_cache_lock():
                     self._response_cache[cache_key] = (result, time.monotonic())
 
-            fut.set_result(result)
+            if not fut.done():
+                fut.set_result(result)
             return result
         except httpx.HTTPStatusError as e:
             if default is not None:
@@ -269,9 +270,11 @@ class SakaiClient:
                     f"Sakai API HTTP error: {method} {endpoint} (params={params}) -> HTTP {e.response.status_code}. "
                     f"Falling back to default value."
                 )
-                fut.set_result(default)
+                if not fut.done():
+                    fut.set_result(default)
                 return default
-            fut.set_exception(e)
+            if not fut.done():
+                fut.set_exception(e)
             raise
         except BaseException as e:
             if default is not None and isinstance(e, Exception):
@@ -279,13 +282,20 @@ class SakaiClient:
                     f"Sakai API communication error: {method} {endpoint} (params={params}) -> {e}. "
                     f"Falling back to default value."
                 )
-                fut.set_result(default)
+                if not fut.done():
+                    fut.set_result(default)
                 return default
-            fut.set_exception(e)
+            if not fut.done():
+                fut.set_exception(e)
             raise
         finally:
             async with self._get_inflight_lock():
                 self._inflight_requests.pop(cache_key, None)
+            if fut.done() and not fut.cancelled():
+                try:
+                    fut.exception()
+                except BaseException:
+                    pass
 
     async def _get_json(
         self,
@@ -334,6 +344,13 @@ class SakaiClient:
 
         if site_id:
             target_courses = [c for c in courses if c.id == site_id]
+            if target_courses:
+                site_names = {c.id: c.name for c in target_courses}
+                site_tool_pages = {c.id: c.tool_pages for c in target_courses}
+            else:
+                site_names = {site_id: site_id}
+                site_tool_pages = {}
+            return site_names, site_tool_pages
         elif favorites_only:
             favs = [c for c in courses if c.is_favorite]
             # お気に入り未設定時のフォールバック
@@ -492,8 +509,16 @@ class SakaiClient:
             event_type=event_type,
         )
         if start_date:
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
+            else:
+                start_date = start_date.astimezone(timezone.utc)
             events = [e for e in events if e.start_time and e.start_time >= start_date]
         if end_date:
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
+            else:
+                end_date = end_date.astimezone(timezone.utc)
             events = [e for e in events if e.start_time and e.start_time <= end_date]
         return events
 
@@ -616,8 +641,9 @@ class SakaiClient:
         Returns:
             str: ダウンロード完了メッセージ (保存先絶対パス、サイズ等)
         """
-        path = urlparse(url).path
-        endpoint = path if path.startswith("/") else f"/{path}"
+        parsed = urlparse(url)
+        path = parsed.path if parsed.path.startswith("/") else f"/{parsed.path}"
+        endpoint = f"{path}?{parsed.query}" if parsed.query else path
 
         resp = await self._request("GET", endpoint)
         content = resp.content
