@@ -1,3 +1,8 @@
-from src.client.sakai_client import SakaiClient
+"""Sakai API client package."""
 
-__all__ = ["SakaiClient"]
+try:
+    from src.client.sakai_client import SakaiClient
+
+    __all__ = ["SakaiClient"]
+except ImportError:
+    __all__ = []
