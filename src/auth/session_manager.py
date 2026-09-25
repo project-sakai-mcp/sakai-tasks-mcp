@@ -34,7 +34,7 @@ def _get_auth_lock() -> asyncio.Lock:
 
 async def get_valid_cookies(
     force_refresh: bool = False,
-    host: str = Config.SAKAI_HOST,
+    host: str | None = None,
 ) -> dict[str, str]:
     """
     有効な Sakai Cookie を取得する。
@@ -59,7 +59,7 @@ async def get_valid_cookies(
     global _cached_sakai_cookies
     global _last_auth_success_times
     global _last_auth_error_times
-
+    host = host or Config.SAKAI_HOST
     # --------------------------------------------------
     # 1. Fast Path
     # --------------------------------------------------
@@ -206,12 +206,13 @@ async def get_valid_cookies(
 
 
 async def refresh_session(
-    host: str = Config.SAKAI_HOST,
+    host: str | None = None,
 ) -> dict[str, str]:
     """
     保存済み Cookie やキャッシュを使わず、
     WebView で強制的に再認証する。
     """
+    host = host or Config.SAKAI_HOST
     return await get_valid_cookies(
         force_refresh=True,
         host=host,
