@@ -13,7 +13,7 @@ import webview
 from src.config import Config
 
 def authenticate_via_webview(
-    host: str = Config.SAKAI_HOST,
+    host: str | None = None,
     profile_dir: Path = Config.WEBVIEW_DATA_DIR,
     initial_cookies: list[dict[str, Any]] | None = None,
     auto_timeout_seconds: float = Config.WEBVIEW_AUTO_TIMEOUT,
@@ -27,7 +27,7 @@ def authenticate_via_webview(
             ログイン成功時は Cookie 一覧。
             ユーザー中断・タイムアウト・取得失敗時は []。
     """
-
+    host = host or Config.SAKAI_HOST
     cookies_result: list[dict[str, Any]] = []
 
     login_url = f"https://{host}/portal/login"
