@@ -7,65 +7,16 @@ from typing import Any
 from urllib.parse import urlparse
 import httpx
 
-try:
-    from src.config import Config
-except ImportError:
-    class Config:  # type: ignore
-        SAKAI_HOST: str = "tact.ac.thers.ac.jp"
-        REQUEST_TIMEOUT: float = 15.0
-        CACHE_TTL: float = 300.0
-        DEFAULT_ANNOUNCEMENT_LIMIT: int = 7
-        DEFAULT_DEADLINE_DAYS: int = 30
-
-try:
-    from src.auth import get_valid_cookies
-except (ImportError, Exception):
-    async def get_valid_cookies(force_refresh: bool = False, host: str | None = None) -> dict[str, str]:  # type: ignore
-        return {}
-
+from src.config import Config
+from src.auth import get_valid_cookies
 from src.client import endpoints
-
-try:
-    from src.client.parsers.favorite_parser import parse_favorite_courses
-except ImportError:
-    def parse_favorite_courses(*args: Any, **kwargs: Any) -> list[Any]:  # type: ignore
-        raise NotImplementedError("favorite_parser is not implemented yet")
-
-try:
-    from src.client.parsers.course_parser import parse_courses
-except ImportError:
-    def parse_courses(*args: Any, **kwargs: Any) -> list[Any]:  # type: ignore
-        raise NotImplementedError("course_parser is not implemented yet")
-
-try:
-    from src.client.parsers.assignment_parser import parse_assignments
-except ImportError:
-    def parse_assignments(*args: Any, **kwargs: Any) -> list[Any]:  # type: ignore
-        raise NotImplementedError("assignment_parser is not implemented yet")
-
-try:
-    from src.client.parsers.quiz_parser import parse_quizzes
-except ImportError:
-    def parse_quizzes(*args: Any, **kwargs: Any) -> list[Any]:  # type: ignore
-        raise NotImplementedError("quiz_parser is not implemented yet")
-
-try:
-    from src.client.parsers.announcement_parser import parse_announcements
-except ImportError:
-    def parse_announcements(*args: Any, **kwargs: Any) -> list[Any]:  # type: ignore
-        raise NotImplementedError("announcement_parser is not implemented yet")
-
-try:
-    from src.client.parsers.calendar_parser import parse_calendar_events
-except ImportError:
-    def parse_calendar_events(*args: Any, **kwargs: Any) -> list[Any]:  # type: ignore
-        raise NotImplementedError("calendar_parser is not implemented yet")
-
-try:
-    from src.client.parsers.content_parser import parse_course_contents
-except ImportError:
-    def parse_course_contents(*args: Any, **kwargs: Any) -> list[Any]:  # type: ignore
-        raise NotImplementedError("content_parser is not implemented yet")
+from src.client.parsers.favorite_parser import parse_favorite_courses
+from src.client.parsers.course_parser import parse_courses
+from src.client.parsers.assignment_parser import parse_assignments
+from src.client.parsers.quiz_parser import parse_quizzes
+from src.client.parsers.announcement_parser import parse_announcements
+from src.client.parsers.calendar_parser import parse_calendar_events
+from src.client.parsers.content_parser import parse_course_contents
 
 from src.models import (
     Announcement,
@@ -344,13 +295,6 @@ class SakaiClient:
 
         if site_id:
             target_courses = [c for c in courses if c.id == site_id]
-            if target_courses:
-                site_names = {c.id: c.name for c in target_courses}
-                site_tool_pages = {c.id: c.tool_pages for c in target_courses}
-            else:
-                site_names = {site_id: site_id}
-                site_tool_pages = {}
-            return site_names, site_tool_pages
         elif favorites_only:
             favs = [c for c in courses if c.is_favorite]
             # お気に入り未設定時のフォールバック
