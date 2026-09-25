@@ -3,17 +3,19 @@ from typing import Any
 import httpx
 
 from src.config import Config
-
+from src.client.endpoints import SESSION_CURRENT
 
 async def is_session_valid(
     cookies: dict[str, str],
-    host: str = Config.SAKAI_HOST,
+    host: str | None = None,
     timeout: float = Config.SESSION_CHECK_TIMEOUT,
 ) -> bool:
     """
     Cookie を用いて Sakai の現在セッションを確認し、
     ログイン済みなら True を返す。
     """
+    host = host or Config.SAKAI_HOST
+
     info = await get_session_info(
         cookies,
         host=host,
@@ -24,7 +26,7 @@ async def is_session_valid(
 
 async def get_session_info(
     cookies: dict[str, str],
-    host: str = Config.SAKAI_HOST,
+    host: str | None = None,
     timeout: float = Config.SESSION_CHECK_TIMEOUT,
 ) -> dict[str, Any] | None:
     """
@@ -33,7 +35,8 @@ async def get_session_info(
 
     未ログイン・通信エラー・タイムアウト時は None。
     """
-    url = f"https://{host}/direct/session/current.json"
+    host = host or Config.SAKAI_HOST
+    url = f"https://{host}{SESSION_CURRENT}"
 
     try:
         async with httpx.AsyncClient(
