@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Sakai Tasks MCP - 初期セットアップ</title>
+</head>
+<body>
+  <h2>Sakai 接続先大学の選択</h2>
+  <p>利用する大学の Sakai LMS 接続先ドメインを選択または直接入力してください。</p>
+
+  <div>
+    <label for="preset-select">大学プリセット:</label>
+    <select id="preset-select">
+      <option value="">-- プリセットから選択 --</option>
+    </select>
+  </div>
+
+  <div style="margin-top: 10px;">
+    <label for="host-input">Sakai ドメイン (ホスト名):</label>
+    <input type="text" id="host-input" placeholder="例: tact.ac.thers.ac.jp" style="width: 300px;">
+  </div>
+
+  <div style="margin-top: 20px;">
+    <button id="submit-btn" type="button">決定</button>
+    <button id="cancel-btn" type="button">キャンセル</button>
+  </div>
+
+  <script>
+    function init() {
+      if (window.pywebview && window.pywebview.api) {
+        loadPresets();
+      } else {
+        window.addEventListener('pywebviewready', loadPresets);
+      }
+    }
+
+    function loadPresets() {
+      window.pywebview.api.get_presets().then(function(data) {
+        var presetSelect = document.getElementById('preset-select');
+        var hostInput = document.getElementById('host-input');
+
+        if (data.current_host) {
+          hostInput.value = data.current_host;
+        }
+
+        if (data.presets) {
+          for (var name in data.presets) {
+            var opt = document.createElement('option');
+            opt.value = data.presets[name];
+            opt.textContent = name;
+            if (data.presets[name] === data.current_host) {
+              opt.selected = true;
+            }
+            presetSelect.appendChild(opt);
+          }
+        }
+
+        presetSelect.addEventListener('change', function() {
+          if (presetSelect.value) {
+            hostInput.value = presetSelect.value;
+          }
+        });
+      });
+    }
+
+    document.getElementById('submit-btn').addEventListener('click', function() {
+      var host = document.getElementById('host-input').value.trim();
+      if (!host) {
+        alert('Sakai ドメインを入力してください。');
+        return;
+      }
+      if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.select_host(host);
+      }
+    });
+
+    document.getElementById('cancel-btn').addEventListener('click', function() {
+      if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.close_window();
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
