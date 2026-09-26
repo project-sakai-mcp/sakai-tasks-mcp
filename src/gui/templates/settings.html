@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Sakai Tasks MCP 設定</title>
+</head>
+<body>
+  <h1>⚙️ Sakai Tasks MCP 設定</h1>
+
+  <!-- 1. ドメイン設定行 -->
+  <fieldset>
+    <legend>🌐 Sakai 接続先ドメイン</legend>
+    <input type="text" id="sakai-host" placeholder="例: tact.ac.thers.ac.jp" style="width: 300px;">
+    <select id="preset-select">
+      <option value="">🏛️ プリセットから選ぶ ▼</option>
+    </select>
+  </fieldset>
+
+  <!-- 2. 権限詳細説明 (デフォルトで折りたたみ) -->
+  <details style="margin: 10px 0;">
+    <summary>▶ 📖 各利用権限の詳しい説明を見る（クリックで展開）</summary>
+    <div>
+      <ul>
+        <li><strong>全て (ALLOW_ALL)</strong>: 資料ダウンロード・課題指示文・締切など完全アクセスを許可します。</li>
+        <li><strong>強 (TEXT_ONLY / デフォルト)</strong>: 講義資料ファイルのダウンロードを禁止し、テキスト対話・課題指示文・締切のみを許可します。</li>
+        <li><strong>弱 (SCHEDULE_ONLY)</strong>: 締切・カレンダー予定情報のみ取得を許可し、課題指示文・本文・講義資料はマスクします。</li>
+        <li><strong>無効 (BLOCKED)</strong>: AI から講義情報の取得を完全に除外・隠蔽します。</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- 3 & 4. ポリシー一括設定バー & 講義絞り込み検索 -->
+  <fieldset>
+    <legend>🛡️ 講義別 AI 利用ポリシー設定</legend>
+    <div style="margin-bottom: 10px;">
+      <button type="button" id="btn-all-allow">すべて『全て』</button>
+      <button type="button" id="btn-all-text">すべて『強』</button>
+      <button type="button" id="btn-all-schedule">すべて『弱』</button>
+      <button type="button" id="btn-all-blocked">すべて『無効』</button>
+      <span style="margin-left: 20px;">
+        <label for="search-box">🔍 講義名で絞り込み:</label>
+        <input type="text" id="search-box" placeholder="講義名を入力...">
+      </span>
+    </div>
+
+    <!-- 5. 講義別ポリシー設定表 -->
+    <table border="1" id="courses-table" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th>講義名 (★お気に入り優先)</th>
+          <th style="width: 80px; text-align: center;">全て</th>
+          <th style="width: 80px; text-align: center;">強</th>
+          <th style="width: 80px; text-align: center;">弱</th>
+          <th style="width: 80px; text-align: center;">無効</th>
+        </tr>
+      </thead>
+      <tbody id="courses-tbody">
+        <!-- 動的描画 -->
+      </tbody>
+    </table>
+  </fieldset>
+
+  <!-- 6. 詳細パラメータ設定行 -->
+  <fieldset style="margin-top: 10px;">
+    <legend>⏱️ 詳細パラメータ設定</legend>
+    <div>
+      <label for="default-deadline-days">直近締切の取得対象日数:</label>
+      <input type="number" id="default-deadline-days" min="1" max="365" value="30"> 日間
+    </div>
+    <div style="margin-top: 5px;">
+      <label for="default-announcement-limit">お知らせ取得の最大件数:</label>
+      <input type="number" id="default-announcement-limit" min="1" max="100" value="7"> 件
+    </div>
+  </fieldset>
+
+  <!-- 7. 保存・アクションフッター -->
+  <div style="margin-top: 15px; text-align: right;">
+    <button type="button" id="cancel-btn">キャンセル</button>
+    <button type="button" id="save-btn" style="margin-left: 10px;">💾 保存して閉じる</button>
+  </div>
+
+  <script>
+    var globalCourses = [];
+
+    function init() {
+      if (window.pywebview && window.pywebview.api) {
+        loadData();
+      } else {
+        window.addEventListener('pywebviewready', loadData);
+      }
+    }
+
+    function loadData() {
+      window.pywebview.api.get_initial_data().then(function(data) {
+        renderUI(data);
+      });
+    }
+
+    function renderUI(data) {
+      // 1. ドメイン設定
+      var hostInput = document.getElementById('sakai-host');
+      var presetSelect = document.getElementById('preset-select');
+      hostInput.value = data.sakai_host || '';
+
+      if (data.presets) {
+        for (var name in data.presets) {
+          var opt = document.createElement('option');
+          opt.value = data.presets[name];
+          opt.textContent = name;
+          if (data.presets[name] === data.sakai_host) {
+            opt.selected = true;
+          }
+          presetSelect.appendChild(opt);
+        }
+      }
+
+      presetSelect.addEventListener('change', function() {
+        if (presetSelect.value) {
+          hostInput.value = presetSelect.value;
+        }
+      });
+
+      // 6. 詳細パラメータ
+      document.getElementById('default-deadline-days').value = data.default_deadline_days || 30;
+      document.getElementById('default-announcement-limit').value = data.default_announcement_limit || 7;
+
+      // 5. 講義一覧
+      globalCourses = data.courses || [];
+      var tbody = document.getElementById('courses-tbody');
+      tbody.innerHTML = '';
+
+      var policies = ['allow_all', 'text_only', 'schedule_only', 'blocked'];
+
+      globalCourses.forEach(function(course) {
+        var tr = document.createElement('tr');
+        tr.dataset.courseId = course.id;
+        tr.dataset.courseTitle = (course.title || '').toLowerCase();
+
+        // 講義名セル (★付き)
+        var tdTitle = document.createElement('td');
+        var prefix = course.is_favorite ? '★ ' : '  ';
+        tdTitle.textContent = prefix + course.title;
+        tr.appendChild(tdTitle);
+
+        // 各ポリシーのラジオボタン
+        policies.forEach(function(pol) {
+          var tdRadio = document.createElement('td');
+          tdRadio.style.textAlign = 'center';
+          var radio = document.createElement('input');
+          radio.type = 'radio';
+          radio.name = 'policy_' + course.id;
+          radio.value = pol;
+          if (course.current_policy === pol) {
+            radio.checked = true;
+          }
+          tdRadio.appendChild(radio);
+          tr.appendChild(tdRadio);
+        });
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 3. 一括適用ボタン
+    function setAllPolicies(policyValue) {
+      var radios = document.querySelectorAll('#courses-tbody input[type="radio"][value="' + policyValue + '"]');
+      radios.forEach(function(radio) {
+        radio.checked = true;
+      });
+    }
+
+    document.getElementById('btn-all-allow').addEventListener('click', function() { setAllPolicies('allow_all'); });
+    document.getElementById('btn-all-text').addEventListener('click', function() { setAllPolicies('text_only'); });
+    document.getElementById('btn-all-schedule').addEventListener('click', function() { setAllPolicies('schedule_only'); });
+    document.getElementById('btn-all-blocked').addEventListener('click', function() { setAllPolicies('blocked'); });
+
+    // 4. 講義絞り込み検索
+    document.getElementById('search-box').addEventListener('input', function() {
+      var query = this.value.toLowerCase().trim();
+      var rows = document.querySelectorAll('#courses-tbody tr');
+      rows.forEach(function(row) {
+        var title = row.dataset.courseTitle || '';
+        if (query === '' || title.indexOf(query) !== -1) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+
+    // 7. 保存とキャンセル
+    document.getElementById('save-btn').addEventListener('click', function() {
+      var sakaiHost = document.getElementById('sakai-host').value.trim();
+      var deadlineDays = parseInt(document.getElementById('default-deadline-days').value, 10);
+      var announcementLimit = parseInt(document.getElementById('default-announcement-limit').value, 10);
+
+      var updatedCourses = [];
+      globalCourses.forEach(function(course) {
+        var selected = document.querySelector('input[name="policy_' + course.id + '"]:checked');
+        var policyVal = selected ? selected.value : 'text_only';
+        updatedCourses.push({
+          id: course.id,
+          title: course.title,
+          is_favorite: course.is_favorite,
+          current_policy: policyVal
+        });
+      });
+
+      var payload = {
+        sakai_host: sakaiHost,
+        default_deadline_days: deadlineDays,
+        default_announcement_limit: announcementLimit,
+        courses: updatedCourses
+      };
+
+      if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.save_settings(payload);
+      }
+    });
+
+    document.getElementById('cancel-btn').addEventListener('click', function() {
+      if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.close_window();
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
