@@ -5,24 +5,24 @@
   <title>Sakai Tasks MCP 設定</title>
 </head>
 <body>
-  <h1>⚙️ Sakai Tasks MCP 設定</h1>
+  <h2>⚙️ Sakai Tasks MCP 設定</h2>
 
   <!-- 1. ドメイン設定行 -->
   <fieldset>
     <legend>🌐 Sakai 接続先ドメイン</legend>
-    <input type="text" id="sakai-host" placeholder="例: tact.ac.thers.ac.jp" style="width: 300px;">
+    <input type="text" id="sakai-host" style="width: 300px;" placeholder="例: tact.ac.thers.ac.jp">
     <select id="preset-select">
       <option value="">🏛️ プリセットから選ぶ ▼</option>
     </select>
   </fieldset>
 
-  <!-- 2. 権限詳細説明 (デフォルトで折りたたみ) -->
-  <details style="margin: 10px 0;">
+  <!-- 2. 権限詳細説明 (アコーディオン / details) -->
+  <details style="margin-top: 10px;">
     <summary>▶ 📖 各利用権限の詳しい説明を見る（クリックで展開）</summary>
-    <div>
+    <div style="padding: 8px; border: 1px solid #ccc; margin-top: 5px;">
       <ul>
-        <li><strong>全て (ALLOW_ALL)</strong>: 資料ダウンロード・課題指示文・締切など完全アクセスを許可します。</li>
-        <li><strong>強 (TEXT_ONLY / デフォルト)</strong>: 講義資料ファイルのダウンロードを禁止し、テキスト対話・課題指示文・締切のみを許可します。</li>
+        <li><strong>全て (ALLOW_ALL)</strong>: 課題指示文・カレンダー締切・講義資料ファイルのダウンロードすべてを AI に許可します。</li>
+        <li><strong>強 (TEXT_ONLY / デフォルト)</strong>: 課題指示文・締切の対話は許可しますが、講義資料ファイルのダウンロードを禁止します。</li>
         <li><strong>弱 (SCHEDULE_ONLY)</strong>: 締切・カレンダー予定情報のみ取得を許可し、課題指示文・本文・講義資料はマスクします。</li>
         <li><strong>無効 (BLOCKED)</strong>: AI から講義情報の取得を完全に除外・隠蔽します。</li>
       </ul>
@@ -30,7 +30,7 @@
   </details>
 
   <!-- 3 & 4. ポリシー一括設定バー & 講義絞り込み検索 -->
-  <fieldset>
+  <fieldset style="margin-top: 10px;">
     <legend>🛡️ 講義別 AI 利用ポリシー設定</legend>
     <div style="margin-bottom: 10px;">
       <button type="button" id="btn-all-allow">すべて『全て』</button>
@@ -65,11 +65,11 @@
     <legend>⏱️ 詳細パラメータ設定</legend>
     <div>
       <label for="default-deadline-days">直近締切の取得対象日数:</label>
-      <input type="number" id="default-deadline-days" min="1" max="365" value="30"> 日間
+      <input type="number" id="default-deadline-days" min="1" max="365"> 日間
     </div>
     <div style="margin-top: 5px;">
       <label for="default-announcement-limit">お知らせ取得の最大件数:</label>
-      <input type="number" id="default-announcement-limit" min="1" max="100" value="7"> 件
+      <input type="number" id="default-announcement-limit" min="1" max="100"> 件
     </div>
   </fieldset>
 
@@ -100,18 +100,16 @@
       // 1. ドメイン設定
       var hostInput = document.getElementById('sakai-host');
       var presetSelect = document.getElementById('preset-select');
-      hostInput.value = data.sakai_host || '';
+      hostInput.value = data.sakai_host;
 
-      if (data.presets) {
-        for (var name in data.presets) {
-          var opt = document.createElement('option');
-          opt.value = data.presets[name];
-          opt.textContent = name;
-          if (data.presets[name] === data.sakai_host) {
-            opt.selected = true;
-          }
-          presetSelect.appendChild(opt);
+      for (var name in data.presets) {
+        var opt = document.createElement('option');
+        opt.value = data.presets[name];
+        opt.textContent = name;
+        if (data.presets[name] === data.sakai_host) {
+          opt.selected = true;
         }
+        presetSelect.appendChild(opt);
       }
 
       presetSelect.addEventListener('change', function() {
@@ -121,11 +119,11 @@
       });
 
       // 6. 詳細パラメータ
-      document.getElementById('default-deadline-days').value = data.default_deadline_days || 30;
-      document.getElementById('default-announcement-limit').value = data.default_announcement_limit || 7;
+      document.getElementById('default-deadline-days').value = data.default_deadline_days;
+      document.getElementById('default-announcement-limit').value = data.default_announcement_limit;
 
       // 5. 講義一覧
-      globalCourses = data.courses || [];
+      globalCourses = data.courses;
       var tbody = document.getElementById('courses-tbody');
       tbody.innerHTML = '';
 
@@ -134,7 +132,7 @@
       globalCourses.forEach(function(course) {
         var tr = document.createElement('tr');
         tr.dataset.courseId = course.id;
-        tr.dataset.courseTitle = (course.title || '').toLowerCase();
+        tr.dataset.courseTitle = course.title.toLowerCase();
 
         // 講義名セル (★付き)
         var tdTitle = document.createElement('td');
@@ -179,7 +177,7 @@
       var query = this.value.toLowerCase().trim();
       var rows = document.querySelectorAll('#courses-tbody tr');
       rows.forEach(function(row) {
-        var title = row.dataset.courseTitle || '';
+        var title = row.dataset.courseTitle;
         if (query === '' || title.indexOf(query) !== -1) {
           row.style.display = '';
         } else {
@@ -191,13 +189,27 @@
     // 7. 保存とキャンセル
     document.getElementById('save-btn').addEventListener('click', function() {
       var sakaiHost = document.getElementById('sakai-host').value.trim();
+      if (!sakaiHost) {
+        alert('Sakai 接続先ドメインを入力してください。');
+        return;
+      }
+
       var deadlineDays = parseInt(document.getElementById('default-deadline-days').value, 10);
+      if (isNaN(deadlineDays) || deadlineDays <= 0) {
+        alert('直近締切の取得対象日数を正しく入力してください。');
+        return;
+      }
+
       var announcementLimit = parseInt(document.getElementById('default-announcement-limit').value, 10);
+      if (isNaN(announcementLimit) || announcementLimit <= 0) {
+        alert('お知らせ取得の最大件数を正しく入力してください。');
+        return;
+      }
 
       var updatedCourses = [];
       globalCourses.forEach(function(course) {
         var selected = document.querySelector('input[name="policy_' + course.id + '"]:checked');
-        var policyVal = selected ? selected.value : 'text_only';
+        var policyVal = selected ? selected.value : course.current_policy;
         updatedCourses.push({
           id: course.id,
           title: course.title,
