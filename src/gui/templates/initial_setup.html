@@ -39,20 +39,16 @@
         var presetSelect = document.getElementById('preset-select');
         var hostInput = document.getElementById('host-input');
 
-        if (data.current_host) {
-          hostInput.value = data.current_host;
-        }
+        hostInput.value = data.current_host;
 
-        if (data.presets) {
-          for (var name in data.presets) {
-            var opt = document.createElement('option');
-            opt.value = data.presets[name];
-            opt.textContent = name;
-            if (data.presets[name] === data.current_host) {
-              opt.selected = true;
-            }
-            presetSelect.appendChild(opt);
+        for (var name in data.presets) {
+          var opt = document.createElement('option');
+          opt.value = data.presets[name];
+          opt.textContent = name;
+          if (data.presets[name] === data.current_host) {
+            opt.selected = true;
           }
+          presetSelect.appendChild(opt);
         }
 
         presetSelect.addEventListener('change', function() {
