@@ -1,12 +1,9 @@
 """UI data builder module for Sakai settings."""
 
 import asyncio
-from typing import TYPE_CHECKING
 from pydantic import BaseModel
 from src.config import AIPolicyMode, Config
-
-if TYPE_CHECKING:
-    from src.client.sakai_client import SakaiClient
+from src.client.sakai_client import SakaiClient
 
 
 class CourseSettingItem(BaseModel):
@@ -26,18 +23,14 @@ class SettingsUIData(BaseModel):
     courses: list[CourseSettingItem] # 講義一覧 (お気に入り優先順)
 
 
-async def build_settings_ui_data(client: "SakaiClient | None" = None) -> SettingsUIData:
+async def build_settings_ui_data() -> SettingsUIData:
     """
     Sakai から全講義一覧を取得し、既存の config.json とマージして
     UI 用データ (SettingsUIData) を構築する。
     """
     # 1. 講義一覧とお気に入り情報を SakaiClient から取得 (未ログインなら自動ログイン)
-    if client is not None:
+    async with SakaiClient() as client:
         courses = await client.get_courses(favorites_only=False)
-    else:
-        from src.client.sakai_client import SakaiClient
-        async with SakaiClient() as c:
-            courses = await c.get_courses(favorites_only=False)
 
     # 2. 現在の config.json をロード
     config = Config.load()
