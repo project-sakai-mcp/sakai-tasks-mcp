@@ -1,13 +1,20 @@
 """FastMCP server implementation for Sakai Tasks MCP."""
 
 import argparse
+from pathlib import Path
 import subprocess
 import sys
 from typing import Any
+
+# Ensure project root is in sys.path for direct script execution
+_project_root = str(Path(__file__).resolve().parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 from mcp.server.fastmcp import FastMCP
 
-from src.auth import cookie_storage, session_checker
 from src.client import SakaiClient
+from src.auth import cookie_storage, session_checker
 from src.client.parsers.base import parse_datetime
 from src.config import Config
 from src.models import (
