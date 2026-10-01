@@ -43,7 +43,9 @@ def parse_quizzes(
         if raw_status == "0":
             continue
 
-        q_id = item["publishedAssessmentId"]
+        q_id = item.get("publishedAssessmentId")
+        if q_id is None or str(q_id).strip() == "":
+            continue
         q_id_str = str(q_id)
         title = item["title"]
 
@@ -52,7 +54,14 @@ def parse_quizzes(
         close_date = parse_datetime(item.get("retractDate"))
 
         time_limit = item.get("timeLimit")
-        time_limit_seconds = int(time_limit) if time_limit is not None else None
+        time_limit_seconds = None
+        if time_limit is not None:
+            try:
+                tl = int(float(time_limit))
+                if tl > 0:
+                    time_limit_seconds = tl
+            except (ValueError, TypeError):
+                time_limit_seconds = None
 
         site_url = endpoints.get_site_url(host, site_id)
         url = tool_page_url or site_url
