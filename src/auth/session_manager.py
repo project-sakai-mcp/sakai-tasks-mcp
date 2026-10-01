@@ -163,6 +163,7 @@ async def get_valid_cookies(
         logger.info("Starting WebView login subprocess: %s", " ".join(cmd))
         proc = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
