@@ -65,32 +65,57 @@ def authenticate_via_webview(
         """
         pywebview が返す Cookie を、
         cookie_storage.py が扱う list[dict] に変換する。
-
-        pywebview / OS WebView の実際の Cookie 型に応じて
-        今後調整する可能性がある。
         """
         result: list[dict[str, Any]] = []
 
         if raw_cookies is None:
             return result
 
-        for cookie in raw_cookies:
-            # SimpleCookie / Morsel 系を想定
-            try:
+        items = raw_cookies if isinstance(raw_cookies, list) else [raw_cookies]
+        for item in items:
+            # 1. http.cookies.SimpleCookie (辞書ライク: {name: Morsel})
+            if hasattr(item, "items") and callable(getattr(item, "items")):
+                for name, morsel in item.items():
+                    try:
+                        result.append(
+                            {
+                                "name": name,
+                                "value": morsel.value if hasattr(morsel, "value") else str(morsel),
+                                "domain": morsel["domain"] if hasattr(morsel, "__getitem__") and "domain" in morsel else "",
+                                "path": morsel["path"] if hasattr(morsel, "__getitem__") and "path" in morsel else "/",
+                                "httponly": bool(morsel["httponly"]) if hasattr(morsel, "__getitem__") and "httponly" in morsel else False,
+                                "secure": bool(morsel["secure"]) if hasattr(morsel, "__getitem__") and "secure" in morsel else False,
+                            }
+                        )
+                    except Exception:
+                        continue
+            # 2. Morsel 単体の場合
+            elif hasattr(item, "key") and hasattr(item, "value"):
+                try:
+                    result.append(
+                        {
+                            "name": item.key,
+                            "value": item.value,
+                            "domain": item["domain"] if hasattr(item, "__getitem__") and "domain" in item else "",
+                            "path": item["path"] if hasattr(item, "__getitem__") and "path" in item else "/",
+                            "httponly": bool(item["httponly"]) if hasattr(item, "__getitem__") and "httponly" in item else False,
+                            "secure": bool(item["secure"]) if hasattr(item, "__getitem__") and "secure" in item else False,
+                        }
+                    )
+                except Exception:
+                    continue
+            # 3. dict の場合
+            elif isinstance(item, dict):
                 result.append(
                     {
-                        "name": cookie.key,
-                        "value": cookie.value,
-                        "domain": cookie["domain"],
-                        "path": cookie["path"],
-                        "httponly": bool(cookie["httponly"]),
-                        "secure": bool(cookie["secure"]),
+                        "name": item.get("name", ""),
+                        "value": item.get("value", ""),
+                        "domain": item.get("domain", ""),
+                        "path": item.get("path", "/"),
+                        "httponly": bool(item.get("httponly", False)),
+                        "secure": bool(item.get("secure", False)),
                     }
                 )
-            except (AttributeError, KeyError, TypeError):
-                # 実際の pywebview の Cookie 型が異なる場合は
-                # 統合時にここを調整する
-                continue
 
         return result
 
