@@ -1,5 +1,6 @@
 """Assignment parser from Sakai /direct/assignment/my.json."""
 
+from datetime import datetime, timezone
 from typing import Any
 
 from src.client import endpoints
@@ -40,8 +41,13 @@ def parse_assignments(
         collection = data.get("assignment_collection", [])
 
     tasks: list[SakaiTask] = []
+    now = datetime.now(timezone.utc)
 
     for item in collection:
+        # 下書きは除外
+        if item.get("draft") is True:
+            continue
+
         a_id = str(item["id"])
         if assignment_id and a_id != assignment_id:
             continue
@@ -50,7 +56,7 @@ def parse_assignments(
         if site_names is not None and site_id not in site_names:
             continue
 
-        site_name = (site_names.get(site_id) if site_names else None) or item.get("siteTitle") or site_id
+        site_name = (site_names.get(site_id) if site_names else None) or site_id
         title = item["title"]
 
         due_date = parse_datetime(item.get("dueTime"))
@@ -65,7 +71,7 @@ def parse_assignments(
         # status
         if is_submitted:
             status = TaskStatus.SUBMITTED
-        elif raw_status == "CLOSED":
+        elif raw_status == "CLOSED" or (close_date and close_date < now):
             status = TaskStatus.CLOSED
         else:
             status = TaskStatus.OPEN
@@ -76,18 +82,18 @@ def parse_assignments(
             tool_url = site_tool_pages[site_id].get("assignment")
         url = tool_url or site_url
 
+        raw_points = item.get("maxGradePoint")
+        if raw_points is not None and str(raw_points).strip() != "":
+            max_points = float(raw_points)
+        else:
+            max_points = None
+
         if include_details:
             instructions = clean_html_text(item.get("instructions")) or None
             attachments = parse_attachments(item.get("attachments"), host)
-            raw_points = item.get("maxGradePoint")
-            if raw_points is not None and raw_points != "":
-                max_points = float(raw_points)
-            else:
-                max_points = None
         else:
             instructions = None
             attachments = []
-            max_points = None
 
         tasks.append(
             SakaiTask(
