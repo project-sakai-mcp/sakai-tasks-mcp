@@ -1,1 +1,1 @@
-"""Sakai Tasks MCP root package."""
+"""Sakai Tasks MCP Server package."""
