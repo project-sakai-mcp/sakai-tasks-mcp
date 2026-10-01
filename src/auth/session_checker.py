@@ -3,7 +3,8 @@ from typing import Any
 import httpx
 
 from src.config import Config
-from src.client.endpoints import SESSION_CURRENT
+
+SESSION_CURRENT = "/direct/session/current.json"
 
 async def is_session_valid(
     cookies: dict[str, str],
