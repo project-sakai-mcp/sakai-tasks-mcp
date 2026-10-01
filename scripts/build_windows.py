@@ -84,6 +84,20 @@ def install_dependencies(python_embed_dir: Path, requirements_file: Path) -> Non
     if get_pip_path.exists():
         get_pip_path.unlink()
 
+    print("[build_windows] Installing setuptools and wheel into embeddable Python...")
+    subprocess.run(
+        [
+            str(python_exe),
+            "-m",
+            "pip",
+            "install",
+            "setuptools",
+            "wheel",
+            "--no-warn-script-location",
+        ],
+        check=True,
+    )
+
     print(f"[build_windows] Installing packages from {requirements_file}...")
     subprocess.run(
         [
