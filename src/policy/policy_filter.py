@@ -98,7 +98,9 @@ def filter_calendar_events(events: list[CalendarEvent]) -> list[CalendarEvent]:
 def filter_course_materials(materials: list[CourseMaterial], site_id: str) -> list[CourseMaterial]:
     """ポリシーに応じて授業資料一覧を除外・マスキングして返す。"""
     policy = Config.get_course_policy(site_id)
-    if policy in (AIPolicyMode.BLOCKED, AIPolicyMode.SCHEDULE_ONLY):
+    if policy == AIPolicyMode.BLOCKED:
+        raise ValueError(f"指定講義 '{site_id}' は存在しないか利用できません。")
+    elif policy == AIPolicyMode.SCHEDULE_ONLY:
         return []
     elif policy == AIPolicyMode.TEXT_ONLY:
         # ダウンロード URL のみ消去して一覧メタデータ（ファイル名等）のみ提供
