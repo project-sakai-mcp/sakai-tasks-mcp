@@ -38,13 +38,14 @@ def parse_course_contents(
     else:
         collection = data.get("content_collection", [])
 
+    clean_host = host.removeprefix("https://").removeprefix("http://").rstrip("/")
+    root_entity = f"/group/{site_id}".rstrip("/")
     materials: list[CourseMaterial] = []
-    root_entity = f"/group/{site_id}/"
 
     for item in collection:
         entity_id = item.get("entityId", "")
         # ルートフォルダ項目は除外
-        if entity_id == root_entity:
+        if entity_id.rstrip("/") == root_entity:
             continue
 
         raw_type = item.get("type", "")
@@ -56,7 +57,7 @@ def parse_course_contents(
         material_type = MaterialType.FOLDER if is_folder else MaterialType.FILE
         is_collection = is_folder
 
-        raw_title = item.get("title") or ""
+        raw_title = item.get("title") or entity_id.rstrip("/").split("/")[-1]
         name = urllib.parse.unquote(str(raw_title))
 
         raw_url = item.get("url") or ""
@@ -68,18 +69,19 @@ def parse_course_contents(
                 url = raw_url
             elif raw_url:
                 endpoint = raw_url if raw_url.startswith("/") else f"/{raw_url}"
-                url = f"https://{host}{endpoint}"
+                url = f"https://{clean_host}{endpoint}"
             else:
                 url = None
 
             raw_size = item.get("size")
-            size_bytes = int(float(raw_size)) if raw_size is not None and raw_size != "" else None
+            size_bytes = int(float(raw_size)) if raw_size is not None and str(raw_size).strip() != "" else None
 
         container = item.get("container") or ""
-        if container.startswith(root_entity):
-            path = container[len(root_entity):]
+        root_prefix = f"/group/{site_id}/"
+        if container.startswith(root_prefix):
+            path = container[len(root_prefix):].rstrip("/") or None
         else:
-            path = container or None
+            path = container.strip("/") or None
 
         modified_at = parse_datetime(item.get("modifiedDate"))
         mime_type = item.get("mimeType")
