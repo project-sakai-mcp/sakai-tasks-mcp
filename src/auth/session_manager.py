@@ -1,9 +1,12 @@
 import asyncio
+import logging
 import sys
 import time
 
 from src.config import Config
 from src.auth import cookie_storage, session_checker
+
+logger = logging.getLogger(__name__)
 
 
 SESSION_CACHE_TTL: float = 300.0  # 5分
@@ -157,13 +160,15 @@ async def get_valid_cookies(
                 host,
             ]
 
+        logger.info("Starting WebView login subprocess: %s", " ".join(cmd))
         proc = await asyncio.create_subprocess_exec(
             *cmd,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
 
-        returncode = await proc.wait()
+        stdout_bytes, stderr_bytes = await proc.communicate()
+        returncode = proc.returncode
 
         # --------------------------------------------------
         # 5. WebView認証失敗
@@ -171,11 +176,23 @@ async def get_valid_cookies(
 
         if returncode != 0:
             _last_auth_error_times[host] = time.monotonic()
+            stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
+            stdout_text = stdout_bytes.decode("utf-8", errors="replace").strip()
+            error_detail = stderr_text or stdout_text or "ログインウィンドウが閉じられたか、認証に失敗しました。"
+
+            logger.error(
+                "WebView login subprocess failed with code %s.\nSTDERR: %s\nSTDOUT: %s",
+                returncode,
+                stderr_text,
+                stdout_text,
+            )
 
             raise RuntimeError(
-                "ログインウィンドウが閉じられたか、"
-                "認証に失敗しました。"
+                f"WebViewログイン認証に失敗しました (終了コード: {returncode})。\n"
+                f"詳細: {error_detail}"
             )
+
+        logger.info("WebView login subprocess completed successfully.")
 
         # --------------------------------------------------
         # 6. 子プロセスが保存した新しい Cookie を読み込む
