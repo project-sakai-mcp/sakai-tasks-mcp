@@ -42,13 +42,16 @@ def parse_calendar_events(
             continue
 
         raw_type = item.get("type")
+        norm_event_type = raw_type.lower() if raw_type else None
+
         if event_type:
-            if not raw_type or raw_type.lower() != event_type.lower():
+            if not norm_event_type or norm_event_type != event_type.lower():
                 continue
 
         site_id = item.get("siteId")
-        if site_names is not None and site_id and site_id not in site_names:
-            continue
+        if site_names is not None:
+            if not site_id or site_id not in site_names:
+                continue
 
         site_name = (site_names.get(site_id) if site_names and site_id else None) or item.get("siteName")
         title = item["title"]
@@ -71,7 +74,7 @@ def parse_calendar_events(
         tool_url = None
         if site_tool_pages and site_id and site_id in site_tool_pages:
             pages = site_tool_pages[site_id]
-            if raw_type and raw_type.lower() == "assignment":
+            if norm_event_type == "assignment":
                 tool_url = pages.get("assignment")
             else:
                 tool_url = pages.get("calendar") or pages.get("schedule")
@@ -84,7 +87,7 @@ def parse_calendar_events(
                 description=description,
                 start_time=start_time,
                 end_time=end_time,
-                event_type=raw_type,
+                event_type=norm_event_type,
                 site_id=site_id,
                 site_name=site_name,
                 url=url,
