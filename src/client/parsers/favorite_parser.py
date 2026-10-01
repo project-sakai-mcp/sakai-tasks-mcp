@@ -54,7 +54,7 @@ def parse_favorite_courses(html_content: str, host: str) -> list[CourseSite]:
         if span:
             name = span.get("title") or span.get_text(strip=True)
         if not name:
-            name = a_tag.get("title") or a_tag.get_text(strip=True)
+            name = a_tag.get("title") or a_tag.get_text(strip=True) or site_id
 
         site_url = endpoints.get_site_url(host, site_id)
         courses.append(
