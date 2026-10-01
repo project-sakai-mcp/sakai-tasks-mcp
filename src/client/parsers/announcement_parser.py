@@ -42,9 +42,7 @@ def parse_announcements(
     announcements: list[Announcement] = []
 
     for item in collection:
-        a_id = str(item.get("announcementId") or item.get("id") or "")
-        if not a_id:
-            continue
+        a_id = str(item.get("announcementId") or item["id"])
 
         if announcement_id and a_id != announcement_id:
             continue
@@ -53,7 +51,8 @@ def parse_announcements(
         if site_names is not None and site_id not in site_names:
             continue
 
-        site_name = (site_names.get(site_id) if site_names else None) or item.get("siteTitle") or site_id
+        site_title = item.get("siteTitle")
+        site_name = site_title or (site_names.get(site_id) if site_names else None) or site_id
         title = item["title"]
 
         published_at = parse_datetime(item.get("createdOn"))
