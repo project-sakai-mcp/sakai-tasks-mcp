@@ -66,7 +66,7 @@ def parse_assignments(
         # 提出判定
         raw_status = str(item.get("status", "")).upper()
         submissions = item.get("submissions") or []
-        is_submitted = raw_status == "SUBMITTED" or len(submissions) > 0
+        is_submitted = any(sub.get("userSubmission") is True for sub in submissions)
 
         # status
         if is_submitted:
