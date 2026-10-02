@@ -55,7 +55,9 @@ async def list_courses(favorites_only: bool = True) -> list[CourseSite]:
     学生が登録している講義の一覧や講義 ID を確認する際に使用してください。
 
     Args:
-        favorites_only: True の場合はお気に入り（ピン留め）登録講義のみ取得します。未設定時は自動的に全講義にフォールバックします。
+        favorites_only: 原則としてデフォルトの True のまま（または指定を省略して）呼び出してください。
+            ユーザーから「過去の講義」「履修した全講義」「ピン留めしていない講義」などと明示的に指示された場合、
+            またはお気に入り一覧に対象講義が見つからなかった場合の再検索時のみ False を指定します。
     """
     client = get_client()
     courses = await client.get_courses(favorites_only=favorites_only)
@@ -75,7 +77,7 @@ async def get_assignments(
     Args:
         site_id: 特定の講義で絞り込む場合の講義サイト ID。
         assignment_id: 特定の 1 課題のみを取得する場合の課題 ID。
-        favorites_only: True の場合はお気に入り講義の課題のみ取得します。
+        favorites_only: 原則としてデフォルトの True のまま（または指定を省略して）呼び出してください。ユーザーから「全講義の課題」「過去の課題も含めて」と明示された場合のみ False を指定します。
         include_details: True の場合は課題の指示文 (instructions) や添付ファイル情報も含めます。
     """
     client = get_client()
@@ -98,7 +100,7 @@ async def get_quizzes(
 
     Args:
         site_id: 特定の講義で絞り込む場合の講義サイト ID。
-        favorites_only: True の場合はお気に入り講義のテストのみ取得します。
+        favorites_only: 原則としてデフォルトの True のまま（または指定を省略して）呼び出してください。ユーザーから明示的に指示された場合のみ False を指定します。
     """
     client = get_client()
     tasks = await client.get_quizzes(site_id=site_id, favorites_only=favorites_only)
@@ -116,7 +118,7 @@ async def get_upcoming_deadlines(
 
     Args:
         days: 何日先までの締切を対象とするか。未指定時は設定のデフォルト日数 (通常30日) が適用されます。
-        favorites_only: True の場合はお気に入り講義のみを対象とします。
+        favorites_only: 原則としてデフォルトの True のまま（または指定を省略して）呼び出してください。ユーザーから明示的に指示された場合のみ False を指定します。
     """
     client = get_client()
     target_days = days if days is not None else Config.DEFAULT_DEADLINE_DAYS
@@ -139,7 +141,7 @@ async def get_announcements(
         site_id: 特定講義で絞り込む場合の講義サイト ID。
         announcement_id: 特定の 1 件のみを取得する場合のお知らせ ID。
         n: 取得件数上限。未指定時は設定のデフォルト件数 (通常7件) が適用されます。
-        favorites_only: True の場合はお気に入り講義のお知らせのみ取得します。
+        favorites_only: 原則としてデフォルトの True のまま（または指定を省略して）呼び出してください。ユーザーから明示的に指示された場合のみ False を指定します。
         include_details: True の場合は本文 (body) や添付資料も含めます。
     """
     client = get_client()

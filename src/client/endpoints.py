@@ -7,7 +7,7 @@ PORTAL_FAVORITES_LIST = "/portal/favorites/list"         # お気に入り講義
 PORTAL_LOGIN = "/portal/login"                          # SSO ログイン画面
 
 SESSION_CURRENT = "/direct/session/current.json"        # セッション有効性確認 & 有効期限延長
-SITE_LIST = "/direct/site.json?_limit=0"                # 履修講義一覧 (全件取得のため _limit=0 を指定)
+SITE_LIST = "/direct/site.json?_limit=500"              # 履修講義一覧 (全件取得のため _limit=500 を指定)
 ASSIGNMENT_MY = "/direct/assignment/my.json?_limit=0"    # 履修中全講義の課題一覧 (全件取得のため _limit=0 を指定)
 CALENDAR_MY = "/direct/calendar/my.json"                # カレンダー予定・イベント一覧
 ANNOUNCEMENT_USER = "/direct/announcement/user.json"    # 全講義のお知らせ一覧 (?d=日数)
