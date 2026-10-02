@@ -43,6 +43,13 @@ Sakai LMS (TACT) 連携MCPサーバー。
 - 講義名から調べる場合: `site_id` が不明な時は必ず `list_courses` で特定する。
 - フィルター: `favorites_only` は原則デフォルト(True)のまま呼ぶ (「全講義」「過去の」等の明示時のみ False)。
 - 認証切れ: `check_auth_status` で確認し、必要なら `open_settings` を案内する。
+【並列呼び出し・バッチ処理の指針】
+- 本サーバーは完全非同期 (asyncio)・Singleflight (同一リクエスト合流)・キャッシュ機構を備えており、高並行処理に最適化されています。
+- 複数科目にまたがる調査や複数ファイルの保存を行う際は、外部スクリプトを作成せず、本MCPツールを1ターンで並列（複数同時）に呼び出してください。サーバー側で安全かつ高速に並行処理されます。
+- 推奨ケース:
+  1. 複数科目の横断確認: 複数科目の `get_course_dashboard` や `get_announcements` の同時取得
+  2. 複数課題の深掘り: 複数課題に対する `get_assignments(assignment_id=..., include_details=True)` の同時取得
+  3. 資料の一括確認・保存: 複数科目の `get_course_materials` や複数ファイルの `download_material` の同時実行
 """
 
 mcp = FastMCP("sakai-tasks-mcp", instructions=SERVER_INSTRUCTIONS.strip())
@@ -153,6 +160,8 @@ async def get_announcements(
         n: 取得件数上限。未指定時は設定のデフォルト件数 (通常7件) が適用されます。
         favorites_only: 原則としてデフォルトの True のまま（または指定を省略して）呼び出してください。ユーザーから明示的に指示された場合のみ False を指定します。
         include_details: True の場合は本文 (body) や添付資料も含めます。
+
+    ※ 複数講義のお知らせを横断チェックする場合は、講義ごとに本ツールを並列（複数同時）に呼び出してください。
     """
     client = get_client()
     limit = n if n is not None else Config.DEFAULT_ANNOUNCEMENT_LIMIT
@@ -205,6 +214,8 @@ async def get_course_materials(
     Args:
         site_id: 講義サイト ID (必須)。
         files_only: True の場合はフォルダ項目を除外し、ファイルのみ返却します。
+
+    ※ 複数講義の資料一覧を調べる場合は、各講義の site_id に対して本ツールを並列（複数同時）に呼び出してください。
     """
     client = get_client()
     materials = await client.get_course_materials(site_id=site_id, files_only=files_only)
@@ -221,6 +232,8 @@ async def get_course_dashboard(
 
     Args:
         site_id: 講義サイト ID (必須)。
+
+    ※ 複数講義の状況を一括比較・確認する場合は、各講義の site_id に対して本ツールを並列（複数同時）に呼び出してください。
     """
     client = get_client()
     dashboard = await client.get_course_dashboard(site_id=site_id)
@@ -239,6 +252,8 @@ async def download_material(
     Args:
         url: ダウンロード対象の Sakai 相対パス (/access/content/...) または完全修飾 URL。
         save_path: 保存先のローカルファイル絶対パス。
+
+    ※ 複数ファイルを保存する場合は、スクリプトを作成せず本ツールを並列（複数同時）に呼び出してください。サーバー側で安全に並行ダウンロードされます。
     """
     check_download_allowed_by_url(url)
     client = get_client()
