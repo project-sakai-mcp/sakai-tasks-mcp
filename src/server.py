@@ -35,7 +35,17 @@ from src.policy import (
     filter_tasks,
 )
 
-mcp = FastMCP("sakai-tasks-mcp")
+SERVER_INSTRUCTIONS = """
+Sakai LMS (TACT) 連携MCPサーバー。
+【ツール選択指針】
+- 直近の締切/課題確認: まず `get_upcoming_deadlines` を使う。
+- 特定講義の総合確認: `list_courses` で site_id を特定後、`get_course_dashboard` を使う (個別ツールの乱用を避ける)。
+- 講義名から調べる場合: `site_id` が不明な時は必ず `list_courses` で特定する。
+- フィルター: `favorites_only` は原則デフォルト(True)のまま呼ぶ (「全講義」「過去の」等の明示時のみ False)。
+- 認証切れ: `check_auth_status` で確認し、必要なら `open_settings` を案内する。
+"""
+
+mcp = FastMCP("sakai-tasks-mcp", instructions=SERVER_INSTRUCTIONS.strip())
 
 _client: SakaiClient | None = None
 
