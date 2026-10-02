@@ -86,3 +86,20 @@ def test_parse_assignments_submission_status():
     assert len(tasks) == 1
     assert tasks[0].is_submitted is True
     assert tasks[0].status == TaskStatus.SUBMITTED
+
+
+def test_parse_datetime_compact_formats():
+    from datetime import datetime, timezone
+    from src.client.parsers.base import parse_datetime
+
+    # 8桁
+    dt_8 = parse_datetime("20261002")
+    assert dt_8 == datetime(2026, 10, 2, 0, 0, 0, tzinfo=timezone.utc)
+
+    # 14桁 (YYYYMMDDhhmmss)
+    dt_14 = parse_datetime("20260918112848")
+    assert dt_14 == datetime(2026, 9, 18, 11, 28, 48, tzinfo=timezone.utc)
+
+    # 17桁 (YYYYMMDDhhmmssmmm)
+    dt_17 = parse_datetime("20260918112848381")
+    assert dt_17 == datetime(2026, 9, 18, 11, 28, 48, 381000, tzinfo=timezone.utc)

@@ -64,6 +64,23 @@ def parse_datetime(raw: Any) -> datetime | None:
             except ValueError:
                 return None
 
+        # 14桁日時文字列 (例: "20260918112848")
+        if len(raw_str) == 14 and raw_str.isdigit():
+            try:
+                dt = datetime.strptime(raw_str, "%Y%m%d%H%M%S")
+                return dt.replace(tzinfo=timezone.utc)
+            except ValueError:
+                return None
+
+        # 17桁日時文字列 (例: "20260918112848381" -> YYYYMMDDhhmmssmmm)
+        if len(raw_str) == 17 and raw_str.isdigit():
+            try:
+                # %f はマイクロ秒(6桁)のため、ミリ秒3桁の後ろに000を補完してパース
+                dt = datetime.strptime(raw_str + "000", "%Y%m%d%H%M%S%f")
+                return dt.replace(tzinfo=timezone.utc)
+            except ValueError:
+                return None
+
         # 数値文字列の判定
         try:
             val = float(raw_str)
