@@ -252,7 +252,7 @@ sakai-tasks-mcp/
 │   │       ├── __init__.py               # 各パーサー関数の export
 │   │       ├── base.py                   # 日時変換 (秒/ミリ秒)・HTML タグ除去等の共通処理
 │   │       ├── course_parser.py          # 講義一覧 API (/direct/site.json) レスポンス処理
-│   │       ├── favorite_parser.py        # お気に入り講義 (/portal HTML の DOM) 抽出処理
+│   │       ├── favorite_parser.py        # お気に入り講義 (/portal/favorites/list JSON) 抽出処理
 │   │       ├── assignment_parser.py      # 課題一覧・詳細指示文レスポンス処理
 │   │       ├── quiz_parser.py            # テスト・小テスト (sam_pub) レスポンス処理
 │   │       ├── announcement_parser.py    # お知らせ (announcement) レスポンス処理
@@ -1170,7 +1170,7 @@ import httpx
 from src.config import Config
 from src.auth import get_valid_cookies
 from src.client import endpoints
-from src.client.parsers.favorite_parser import parse_favorite_courses
+from src.client.parsers.favorite_parser import parse_favorite_courses, parse_favorite_site_ids
 from src.client.parsers.course_parser import parse_courses
 from src.client.parsers.assignment_parser import parse_assignments
 from src.client.parsers.quiz_parser import parse_quizzes
@@ -1409,12 +1409,11 @@ class SakaiClient:
         全講義一覧（お気に入りフラグ & tool_pages 付き）を取得する。
         """
         ttl = 0.0 if force_refresh else self.cache_ttl
-        portal_task = self._get_text(endpoints.PORTAL, ttl=ttl)
+        favorites_task = self._get_json(endpoints.PORTAL_FAVORITES_LIST, ttl=ttl, default={})
         sites_task = self._get_json(endpoints.SITE_LIST, ttl=ttl)
-        portal_html, sites_json = await asyncio.gather(portal_task, sites_task)
+        favorites_json, sites_json = await asyncio.gather(favorites_task, sites_task)
 
-        fav_courses = parse_favorite_courses(portal_html, self.host)
-        fav_site_ids = {c.id for c in fav_courses}
+        fav_site_ids = parse_favorite_site_ids(favorites_json)
 
         return parse_courses(sites_json, self.host, favorite_site_ids=fav_site_ids)
 
@@ -1927,54 +1926,41 @@ def parse_attachments(
 
 #### 4.2.5 お気に入り講義パーサー (`src/client/parsers/favorite_parser.py`)
 
-* **役割**: ポータル画面（`GET /portal`）のレスポンス HTML 文字列を受け取り、ユーザーがお気に入り（スター）登録している講義サイト一覧を抽出して正規化する純粋関数。
-* **対象データ**: `GET /portal` から取得された HTML レスポンス文字列
-* **使用技術**: `beautifulsoup4`, `re`, 標準ライブラリ
+* **役割**: Sakai のお気に入りエンドポイント（`GET /portal/favorites/list`）のレスポンス JSON を受け取り、ユーザーがお気に入り（スター）登録している講義サイト一覧・ID 集合を抽出して正規化する純粋関数。
+* **対象データ**: `GET /portal/favorites/list` から取得された JSON レスポンス
+* **使用技術**: 標準ライブラリのみ
 * **リファレンス**: [Comfortable Sakai (`src/features/favorite.ts`)](https://github.com/kyoto-u/comfortable-sakai)
 
 ##### リファレンス (Comfortable Sakai の TypeScript 実装)
 
 ```typescript
 /* Comfortable Sakai によるお気に入り講義サイト抽出処理 */
-export const addFavoritedCourseSites = (
-    doc: Document,
-    courses: Array<Course>,
-    baseURL: string
-): Array<Course> => {
-    const favorites = doc.getElementsByClassName("fav-sites-entry");
-    for (const favorite of favorites) {
-        const aTag = favorite.getElementsByTagName("a")[0];
-        const m = aTag.href.match(/\/portal\/site-?[a-z]*\/([^/]+)/);
-        if (m && !m[1].startsWith("~")) {
-            const name = favorite.getElementsByTagName("span")[0];
-            const course: Course = {
-                id: m[1],
-                name: name.title,
-                link: baseURL + "/portal/site/" + m[1]
-            };
-            courses.push(course);
-        }
-    }
-    return courses;
+export const addFavoritedCourseSites = (baseURL: string): Promise<void> => {
+    ...
+    const request = new XMLHttpRequest();
+    request.open("GET", baseURL + "/portal/favorites/list");
+    request.responseType = "json";
+    request.addEventListener("load", (e) => {
+        const res = request.response;
+        const favorites = res.favoriteSiteIds as [string];
+        ...
+    });
 };
 ```
 
 ##### 関数インターフェース
 
 ```python
-import re
-from bs4 import BeautifulSoup
+from typing import Any
 from src.models import CourseSite
 from src.client import endpoints
 
-SITE_HREF_PATTERN = re.compile(r"/portal/site-?[a-z]*/([^/]+)")
-
-def parse_favorite_courses(html_content: str, host: str) -> list[CourseSite]:
+def parse_favorite_courses(data: dict[str, Any] | list[Any], host: str) -> list[CourseSite]:
     """
-    /portal の HTML から「お気に入り」登録されている講義一覧を抽出する。
+    /portal/favorites/list の JSON レスポンスからお気に入り講義モデル (is_favorite=True) のリストを抽出・生成する。
 
     Args:
-        html_content: /portal から取得した HTML 文字列
+        data: /portal/favorites/list のレスポンス辞書 (例: {"favoriteSiteIds": [...]}) または ID リスト
         host: Sakai ホスト名 (講義 URL 生成用)
 
     Returns:
@@ -1985,17 +1971,12 @@ def parse_favorite_courses(html_content: str, host: str) -> list[CourseSite]:
 
 ##### 実装上の重要ルール & 内部ロジック
 
-1. **DOM 抽出ターゲット (`.fav-sites-entry`)**:
-   * BeautifulSoup で `soup.find_all(class_="fav-sites-entry")` を検索し、お気に入りバー内の各サイト項目を走査する。
-2. **サイト ID 抽出とマイワークスペースの除外**:
-   * `a` タグの `href` 属性に対して正規表現 `r"/portal/site-?[a-z]*/([^/]+)"` を適用し、講義サイト ID（`site_id`）を取得する。
+1. **JSON エンドポイントからの抽出 (`/portal/favorites/list`)**:
+   * HTML スクレイピングを行わず、Sakai のお気に入り API が返却する `favoriteSiteIds` 配列を直接パースする。
+2. **マイワークスペースの除外**:
    * サイト ID が `~` で始まるもの（例: `~user123`）は、講義ではなくユーザー専用の「マイワークスペース」であるため除外する。
-3. **講義名の抽出**:
-   * `a` タグの `title` 属性（存在しない場合は `a.get_text(strip=True)`）から講義名を取得する。
-4. **講義トップページ URL の生成**:
-   * `site_url = endpoints.get_site_url(host, site_id)` を使用して講義トップページ URL を設定する。
-5. **Comfortable Sakai との互換性**:
-   * 京都大学等で実績のある Comfortable Sakai の DOM パースロジックを忠実に再現し、Sakai のテーマやバージョン差異（`site-direct` 等のパス揺れ）にも対応。
+3. **講義一覧パーサーとの連携**:
+   * 抽出されたサイト ID 集合は `course_parser.parse_courses` の `favorite_site_ids` 引数に渡され、全講義モデルの `is_favorite` フラグ付与に利用される。
 
 ---
 

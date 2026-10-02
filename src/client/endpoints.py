@@ -2,7 +2,8 @@
 # 静的エンドポイント (パス定数)
 # ==============================================================================
 
-PORTAL = "/portal"                                      # トップページ (お気に入り講義の DOM 抽出用)
+PORTAL = "/portal"                                      # トップページ
+PORTAL_FAVORITES_LIST = "/portal/favorites/list"         # お気に入り講義 ID 一覧 (JSON)
 PORTAL_LOGIN = "/portal/login"                          # SSO ログイン画面
 
 SESSION_CURRENT = "/direct/session/current.json"        # セッション有効性確認 & 有効期限延長

@@ -101,7 +101,7 @@ git push origin 31-feat-src-models
 | | `src/client/parsers/base.py` | 日時変換・HTML サニタイズ等の共通ユーティリティ |
 | | `src/client/parsers/announcement_parser.py` | お知らせ API の JSON を `Announcement` に変換 |
 | | `src/client/parsers/calendar_parser.py` | カレンダー API の JSON を `CalendarEvent` に変換 |
-| | `src/client/parsers/favorite_parser.py` | ポータル HTML からお気に入り講義一覧を抽出 |
+| | `src/client/parsers/favorite_parser.py` | お気に入り API の JSON からお気に入り講義一覧を抽出 |
 | | `src/client/parsers/course_parser.py` | 講義サイト一覧 API の JSON を `CourseSite` に変換 |
 | | `src/client/parsers/assignment_parser.py` | 課題 API の JSON を `SakaiTask`（課題）に変換 |
 | | `src/client/parsers/quiz_parser.py` | テスト・クイズ API の JSON を `SakaiTask`（クイズ）に変換 |

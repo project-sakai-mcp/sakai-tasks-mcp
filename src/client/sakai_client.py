@@ -273,11 +273,11 @@ class SakaiClient:
         全講義一覧（お気に入りフラグ & tool_pages 付き）を取得する。
         """
         ttl = 0.0 if force_refresh else self.cache_ttl
-        portal_task = self._get_text(endpoints.PORTAL, ttl=ttl)
+        favorites_task = self._get_json(endpoints.PORTAL_FAVORITES_LIST, ttl=ttl, default={})
         sites_task = self._get_json(endpoints.SITE_LIST, ttl=ttl)
-        portal_html, sites_json = await asyncio.gather(portal_task, sites_task)
+        favorites_json, sites_json = await asyncio.gather(favorites_task, sites_task)
 
-        fav_courses = parse_favorite_courses(portal_html, self.host)
+        fav_courses = parse_favorite_courses(favorites_json, self.host)
         fav_site_ids = {c.id for c in fav_courses}
 
         return parse_courses(sites_json, self.host, favorite_site_ids=fav_site_ids)

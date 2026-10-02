@@ -298,7 +298,7 @@ Sakai LMS との非同期 HTTP 通信およびデータ正規化を担います�
 * **Direct REST API (EntityBroker) の利用**:
   * 課題（`/direct/assignment/my.json`）、小テスト（`/direct/sam_pub/context/{siteId}.json`）、お知らせ（`/direct/announcement/user.json`）、カレンダー（`/direct/calendar/my.json`）、授業資料（`/direct/content/site/{siteId}.json`）に対して非同期通信（`httpx.AsyncClient`）を行います。
 * **お気に入り講義の補正抽出 (`favorite_parser.py`)**:
-  * Sakai 公式の講義一覧 API にはお気に入りフラグが含まれないため、京都大学等で開発された Comfortable Sakai の実装知見を参考に、`/portal` の HTML DOM から `.fav-sites-entry` を解析してお気に入り講義 ID を抽出し、API データとマージします。
+  * Sakai 公式の講義一覧 API (`/direct/site.json`) にはお気に入りフラグが含まれないため、Comfortable Sakai の知見を参考に、お気に入りエンドポイント（`/portal/favorites/list`）から `favoriteSiteIds` を取得してお気に入り講義 ID を抽出し、講義一覧モデルとマージします。
 * **日時形式の自動正規化 (`parsers/base.py`)**:
   * 課題 API の秒単位オブジェクト `{ "epochSecond": 1712600000, "nano": 0 }` と、テスト・お知らせ・カレンダーのミリ秒数値 `1712600000000` の差異を `parse_datetime()` 関数で自動判別し、ISO 8601（JST）文字列へ正規化します。
 * **Singleflight 機構 & インメモリキャッシュ**:
