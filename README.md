@@ -38,7 +38,7 @@ AI が呼び出せる MCP ツール一覧です。
 
 ## Windows インストール
 
-[最新版の Windows 版 ZIP をダウンロード (Releases)](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest)
+[最新版の Windows 版 ZIP をダウンロード](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-windows.zip)
 
 ### セットアップ手順
 
@@ -59,7 +59,7 @@ AI が呼び出せる MCP ツール一覧です。
 
 ## macOS インストール
 
-[最新版の macOS 版 ZIP をダウンロード (Releases)](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest)
+[最新版の macOS 版 ZIP をダウンロード](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-macos.zip)
 
 ### セットアップ手順
 
