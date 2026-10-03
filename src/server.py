@@ -92,6 +92,12 @@ _client: SakaiClient | None = None
 def get_client() -> SakaiClient:
     """SakaiClient インスタンスを取得する。"""
     global _client
+    Config.check_and_reload()
+    if not Config.SAKAI_HOST or not Config.CONFIG_FILE_PATH.exists():
+        raise RuntimeError(
+            "接続先大学のSakaiのドメインが設定されていません。ツール `open_settings` を実行して接続先大学を設定してください。"
+        )
+
     if _client is None or _client.host != Config.SAKAI_HOST:
         _client = SakaiClient(host=Config.SAKAI_HOST, timeout=Config.REQUEST_TIMEOUT, cache_ttl=Config.CACHE_TTL)
     return _client
@@ -319,6 +325,8 @@ def open_settings() -> str:
     """
     ユーザー設定画面 (GUI) を別プロセスでポップアップ起動します。
     stdio 通信をブロックしないため、設定画面を開いたまま AI との対話を継続できます。
+    設定画面では（Sakai 接続ホスト名、講義別 AI 利用ポリシー等）を設定できます。
+    接続先ホスト名(ドメイン)が未設定の場合、接続祭ホスト名のみを設定できる初期設定ウィンドウが起動します。
     """
     if getattr(sys, "frozen", False):
         cmd = [sys.executable, "--settings"]
@@ -351,6 +359,13 @@ async def check_auth_status() -> dict[str, Any]:
     現在の Sakai ログインセッションの有効性を確認します。
     未ログインまたはセッション失効時はその旨を返却し、画面の強制表示は行いません。
     """
+    Config.check_and_reload()
+    if not Config.SAKAI_HOST or not Config.CONFIG_FILE_PATH.exists():
+        return {
+            "authenticated": False,
+            "message": "接続先大学のSakaiのドメインが設定されていません。ツール `open_settings` を実行して接続先大学を設定してください。",
+        }
+
     cookies = cookie_storage.load_sakai_cookies(host=Config.SAKAI_HOST)
     if not cookies:
         return {

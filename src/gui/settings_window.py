@@ -14,22 +14,33 @@ def show_settings_window() -> None:
     """
     ユーザー詳細設定画面 (WebView GUI) を起動する。
     別プロセス (--settings) からメインスレッドで直接呼び出される。
-    起動前にセッション確認および UI データ構築 (SettingsUIData) を同期完了させ、
-    設定画面 HTML (settings.html) を即座に完全描画する。
+    Sakai ホストが未設定の場合は、まず大学選択ダイアログ (show_initial_setup_window) を表示する。
+    ホスト確定後にセッション確認および UI データ構築 (SettingsUIData) を行い、
+    詳細設定画面 (settings.html) を描画する。
     """
     template_path = Path(__file__).parent / "templates" / "settings.html"
 
-    # 1. UI データの事前構築 (未ログイン時は内部で get_valid_cookies が呼ばれ、必要に応じ WebView ログインが完了)
+    # 1. ホスト未設定または config.json 未存在時は先に初期セットアップダイアログを表示
+    config = Config.load()
+    if not config.sakai_host or not Config.CONFIG_FILE_PATH.exists():
+        selected_host = show_initial_setup_window()
+        if not selected_host:
+            # ユーザーがキャンセルした場合は通常設定画面に進まず終了
+            return
+        # 最新設定を再ロード
+        config = Config.load()
+
+    # 2. UI データの事前構築 (未ログイン時は内部で get_valid_cookies が呼ばれ、必要に応じ WebView ログインが完了)
     try:
         ui_data = asyncio.run(build_settings_ui_data())
     except Exception as e:
         print(f"設定データの読み込みに失敗しました: {e}", file=sys.stderr)
         return
 
-    # 2. JS 通信ブリッジを初期化
+    # 3. JS 通信ブリッジを初期化
     api = SettingsApi(initial_data=ui_data)
 
-    # 3. 設定画面ウィンドウをメインスレッドで直接生成して起動
+    # 4. 設定画面ウィンドウをメインスレッドで直接生成して起動
     window = webview.create_window(
         title="Sakai Tasks MCP 設定",
         url=template_path.as_uri(),

@@ -26,7 +26,7 @@ class AIPolicyMode(str, Enum):
 
 class AppConfigData(BaseModel):
     """config.json に保存・復元されるスキーマ定義"""
-    sakai_host: str = "tact.ac.thers.ac.jp"
+    sakai_host: str = ""
     policies: dict[str, AIPolicyMode] = Field(default_factory=dict)
     default_deadline_days: int = 30
     default_announcement_limit: int = 7
@@ -67,7 +67,7 @@ class Config:
     }
 
     # 2. 動的ユーザー設定値 (実行中に随時同期される)
-    SAKAI_HOST: str = "tact.ac.thers.ac.jp"
+    SAKAI_HOST: str = ""
     DEFAULT_DEADLINE_DAYS: int = 30
     DEFAULT_ANNOUNCEMENT_LIMIT: int = 7
     REQUEST_TIMEOUT: float = 15.0
@@ -104,16 +104,16 @@ class Config:
         """
         サーバー起動時に main() から 1 回呼び出し、設定を初期化・確定する。
         stdio タイムアウトを防止するためブロッキング GUI は起動せず、
-        1. CLI引数 -> 2. 環境変数 -> 3. config.json -> 4. デフォルト の優先度で確定する。
+        1. CLI引数 -> 2. 環境変数 -> 3. config.json の優先度で確定する。
         """
         data = cls.load()
         if cli_host:
             data.sakai_host = cli_host
+            cls.save(data)
         elif env_host := os.environ.get("SAKAI_HOST"):
             data.sakai_host = env_host
-
-        if not cls.CONFIG_FILE_PATH.exists():
-            # 初回起動時: config.json を生成
+            cls.save(data)
+        elif not cls.CONFIG_FILE_PATH.exists() and data.sakai_host:
             cls.save(data)
 
         cls.apply_data(data)
