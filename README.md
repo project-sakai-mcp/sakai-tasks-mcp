@@ -38,7 +38,7 @@ AI が呼び出せる MCP ツール一覧です。
 
 ## Windows インストール
 
-[最新版の Windows 版 ZIP をダウンロード](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-windows.zip)
+[Windows 版 圧縮ファイルをダウンロード](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-windows.zip)
 
 ### セットアップ手順
 
@@ -59,11 +59,11 @@ AI が呼び出せる MCP ツール一覧です。
 
 ## macOS インストール
 
-[最新版の macOS 版 ZIP をダウンロード](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-macos.zip)
+[macOS 版 圧縮ファイルをダウンロード](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-macos.tar.gz)
 
 ### セットアップ手順
 
-1. ダウンロードした ZIP ファイルを任意のフォルダ（例: `/Users/username/tools` や `~/tools` など）に解凍します。
+1. ダウンロードしたアーカイブ（`.tar.gz`）を任意のフォルダ（例: `/Users/username/tools` や `~/tools` など）に展開（解凍）します。
 2. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の `run.sh` のパスを登録します。
    - 実行ファイルのパス例: `/Users/username/tools/sakai-tasks-mcp-macos/run.sh`
    - **AI に設定ファイルへの追記を依頼する場合のプロンプト例:**
