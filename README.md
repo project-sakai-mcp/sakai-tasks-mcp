@@ -1,127 +1,86 @@
-# 開発方法README
-## Sakai-Tasks-MCP
+# Sakai Tasks MCP
 
-大学の Sakai LMS から課題・小テスト・お知らせ・講義資料を安全に取得し、Claude Desktop や Cursor 等の AI アシスタントと連携する MCP (Model Context Protocol) サーバーです。
+大学の Sakai LMS と AI をつなぐ MCP サーバ
 
----
+![Sakai Tasks MCP の AI チャット連携の様子](docs/release/chat_full.png)
 
-## 📚 ドキュメント一覧 (Documentation)
-
-開発を始める場合、以下のドキュメントを参照してください。ドキュメントには使うツールや言語の詳しい使い方の説明を書いていないので、AIに聞きながら開発を進めてください。ご質問はissueのコメントにお書きください。
-
-* **[開発者ガイド (`docs/guide.md`)](docs/guide.md)**:
-  * 本プロジェクトの目的や仕組みをまとめて書いてあります。
-* **[全体設計書 (`docs/architecture.md`)](docs/architecture.md) [github pages版](https://project-sakai-mcp.github.io/sakai-tasks-mcp/)**:
-  * システム全体のアーキテクチャ、全共通データモデル（Pydantic）、各モジュール・関数の入出力型定義、および GUI 仕様。長いので全部は読まず、担当するコードの要件を確認するために使います。
-* **[Sakai API 完全リファレンス (`docs/sakai_api_reference.md`)](docs/sakai_api_reference.md)**:
-  * Sakai Direct REST API のエンドポイント一覧、レスポンス JSON 構造、日時形式の注意点。
-* **[認証・セッション仕様書 (`docs/auth_and_session_spec.md`)](docs/auth_and_session_spec.md)**:
-  * 大学 SSO (Shibboleth / Microsoft 365) 認証、Cookie ライフサイクル、および WebView2 による自動素通り認証の仕様。
-* **[github pages版architecture.md](https://project-sakai-mcp.github.io/sakai-tasks-mcp/)**:
-  * architecture.md をwebサイトとして表示したもの
+[Web サイト版ガイドはこちら](https://project-sakai-mcp.github.io/sakai-tasks-mcp/release/)
 
 ---
 
-## 🛠️ 開発環境のセットアップ
+## 概要
 
-前提条件: **Python 3.10 以上**
+**Sakai Tasks MCP** は、大学で利用されている Sakai LMS（京都大学 PandA、名古屋大学 TACT など）から、通知や課題の締め切り、講義資料などを取得し、Claude Desktop や Cursor などの AI アシスタントと連携するための MCP (Model Context Protocol) サーバーです。
 
-```bash
-# 1. リポジトリのクローンと移動
-git clone https://github.com/project-sakai-mcp/sakai-tasks-mcp.git
-cd sakai-tasks-mcp
-
-# 2. 仮想環境の作成と有効化
-python -m venv .venv
-source .venv/bin/activate   # Windows (PowerShell): .\.venv\Scripts\Activate.ps1
-                            # Windows (cmd): .\.venv\Scripts\activate.bat
-
-# 3. 依存パッケージのインストール
-pip install -r requirements.txt
-```
+「今週の課題の締切は？」「重要なお知らせはある？」「講義資料をダウンロードして」と AI に話しかけたら Sakai 上の情報を取得できるようにします。
 
 ---
 
-## 🚀 開発ワークフロー
+## 機能
 
-本プロジェクトでは、1ファイルに対し 1つの Issue を用意しています。
+AI が呼び出せる MCP ツール一覧です。
 
-### 1. 担当 Issue の選択 & Assignees 登録
-* 本ドキュメント末尾の「開発のしやすさ（難易度表）」を参考に実装したいファイルの Issue を選び、右側メニューの **Assignees（担当者）** に自分を設定します（※すでに担当者がいる Issue は選べません）。
-
-### 2. Issue からブランチを作成
-* GitHub の Issue 画面（右側 Development セクションの「Create a branch」等）から作業ブランチを作成します。
-  * **Branch source は必ず `dev` を選択してください**（デフォルトが `main` になっている場合は切り替えてください）。
-  * ブランチ名は `<番号>-feat-<issue名>` とします。
-    * 例: issueタイトルが `[feat] src-models #31` の場合 → `31-feat-src-models`
-
-### 3. ローカルで作業ブランチに切り替え
-* GitHub 上でブランチを作成したら、ローカル環境で最新情報を取得してブランチを切り替えます。
-```bash
-git fetch origin
-git switch 31-feat-src-models   # または git checkout 31-feat-src-models
-```
-
-### 4. 仕様の確認 & 実装
-* `docs/architecture.md`（[GitHub Pages版](https://project-sakai-mcp.github.io/sakai-tasks-mcp/)）の **第 1〜3 章**（全体像・共通モデル）と **自分の担当ファイルのセクション** を確認し、コードを実装します。
-
-### 5. 変更のコミット & プッシュ
-* 実装が完了したら、変更内容をコミットしてリモートにプッシュします。
-```bash
-git add <変更したファイル>
-git commit -m "feat: <実装内容の簡潔な説明>"
-git push origin 31-feat-src-models
-```
-
-### 6. Pull Request (PR) の作成
-* GitHub のリポジトリ画面から Pull Request を作成します。
-  * **重要**: PR の宛先（base ブランチ）が **`dev`** になっていることを必ず確認してください（`base: dev` ← `compare: 31-feat-src-models`）。
-  * PR の説明欄に、対応した Issue 番号（例: `Closes #31`）を記載します。
-
-### 7. レビュー & マージ
-* リポジトリの管理人が内容を確認（レビュー）し、問題がなければ `dev` ブランチへマージします。
+| ツール名 | 説明 |
+| :--- | :--- |
+| `get_upcoming_deadlines` | 締切がある課題・小テストを取得し、期限順に整理して返します。 |
+| `get_course_dashboard` | 指定した講義の状況（課題、小テスト、直近のお知らせ、授業資料）を取得します。 |
+| `get_announcements` | 通知を取得します。 |
+| `get_assignments` | 課題の一覧または詳細（提出期限、指示文、添付資料など）を取得します。 |
+| `get_quizzes` | 小テスト・オンラインクイズの一覧や締切情報を取得します。 |
+| `get_calendar_events` | カレンダーに登録されたスケジュールやイベント予定を取得します。 |
+| `get_course_materials` | 講義の配布資料リンク・フォルダ一覧を取得します。 |
+| `download_material` | 講義資料や添付ファイルを指定のローカルフォルダにダウンロードします。 |
+| `list_courses` | 所属している講義一覧と講義IDを取得します。 |
+| `open_settings` | 大学ドメインの変更や講義ごとの情報開示ポリシーなどを設定する GUI 画面を起動します。 |
+| `check_auth_status` | 大学ポータルのログインセッションが有効かどうかを確認します。 |
 
 ---
 
-## ⚠️ 実装時の重要ルール
+## Windows インストール
 
-* **stdio 汚染厳禁**:
-  * 通常の `print()` 出力は MCP の標準入出力通信（JSON-RPC）を破壊します。デバッグやログ出力には必ず `logging` または `sys.stderr` を使用してください。
+[最新版の Windows 版 ZIP をダウンロード (Releases)](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest)
+
+### セットアップ手順
+
+1. ダウンロードした ZIP ファイルを任意のフォルダ（例: `C:\tools` など）に解凍します。
+2. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の `run.bat` のパスを登録します。
+   - 実行ファイルのパス例: `C:\tools\sakai-tasks-mcp-windows\run.bat`
+   - **AI に設定ファイルへの追記を依頼する場合のプロンプト例:**
+     ```text
+     あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
+     名前: sakai-tasks
+     コマンド: C:\tools\sakai-tasks-mcp-windows\run.bat
+     ```
+3. AI アプリを再起動します。
+4. AI のチャット欄で「**初期設定を開いて**」と指示します。
+5. 設定画面が開いたら、所属大学のドメイン（例: `tact.ac.thers.ac.jp` や `panda.ecs.kyoto-u.ac.jp` 等）を登録し、「保存して閉じる」を押します。
 
 ---
 
-## 📊 開発のしやすさ（全29ファイル難易度表）
+## macOS インストール
 
-`src/` ディレクトリ配下の全29ファイルにおける実装難易度および依存関係に基づく一覧です。**上から順に着手しやすくなっています。** 担当する Issue の選定にご活用ください。
+[最新版の macOS 版 ZIP をダウンロード (Releases)](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest)
 
-| 分類 | ファイル | 概要・役割 |
-| :--- | :--- | :--- |
-| **データ変換・定数** | `src/models.py` | 共通データモデル・Enum 定義（※作成済み） |
-| | `src/client/endpoints.py` | Sakai API のエンドポイント URL 定数定義 |
-| | `src/client/parsers/base.py` | 日時変換・HTML サニタイズ等の共通ユーティリティ |
-| | `src/client/parsers/announcement_parser.py` | お知らせ API の JSON を `Announcement` に変換 |
-| | `src/client/parsers/calendar_parser.py` | カレンダー API の JSON を `CalendarEvent` に変換 |
-| | `src/client/parsers/favorite_parser.py` | お気に入り API の JSON からお気に入り講義一覧を抽出 |
-| | `src/client/parsers/course_parser.py` | 講義サイト一覧 API の JSON を `CourseSite` に変換 |
-| | `src/client/parsers/assignment_parser.py` | 課題 API の JSON を `SakaiTask`（課題）に変換 |
-| | `src/client/parsers/quiz_parser.py` | テスト・クイズ API の JSON を `SakaiTask`（クイズ）に変換 |
-| | `src/client/parsers/content_parser.py` | 授業資料・リソース API の JSON を `CourseMaterial` に変換 |
-| | `src/policy/policy_filter.py` | ポリシーに応じたデータのマスキング・除外処理 |
-| **設定・データ連携** | `src/config.py` | 設定ファイルの永続化（JSON 入出力）およびポリシー管理 |
-| | `src/gui/data_builder.py` | GUI 設定画面用の表示データ構築とソート処理 |
-| | `src/auth/cookie_storage.py` | セッション Cookie の暗号化（keyring / Fernet）と保存 |
-| | `src/auth/session_checker.py` | Sakai API へのセッション有効性確認リクエスト |
-| | `src/client/sakai_client.py` | 各パーサーを統括し Sakai REST API と通信するクライアント |
-| **パッケージ初期化**<br/>(Facade / 公開定義) | `src/__init__.py` | パッケージ初期化 |
-| | `src/policy/__init__.py` | ポリシーモジュールの公開関数 export |
-| | `src/client/parsers/__init__.py` | パーサー群の公開関数 export |
-| | `src/client/__init__.py` | クライアントモジュールの公開クラス export |
-| | `src/auth/__init__.py` | 認証モジュールの Facade export |
-| | `src/gui/__init__.py` | GUI モジュールの公開関数 export |
-| **GUI・HTML画面** | `src/gui/templates/initial_setup.html` | 初期セットアップ用 HTML 画面テンプレート |
-| | `src/gui/templates/settings.html` | 講義別ポリシー設定用 HTML 画面テンプレート |
-| | `src/gui/api.py` | GUI（WebView）と Python ロジック間の連携 API ブリッジ |
-| | `src/gui/settings_window.py` | 設定ダイアログウィンドウの表示・制御 |
-| **認証・システムコア** | `src/auth/webview_auth.py` | WebView2 による大学 SSO ログイン画面制御・Cookie 抽出 |
-| | `src/auth/session_manager.py` | 認証セッション全体の調停・非同期排他制御（Lock） |
-| | `src/server.py` | FastMCP サーバー本体。ツール公開と stdio 通信制御 |
+### セットアップ手順
+
+1. ダウンロードした ZIP ファイルを任意のフォルダ（例: `/Users/username/tools` や `~/tools` など）に解凍します。
+2. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の `run.sh` のパスを登録します。
+   - 実行ファイルのパス例: `/Users/username/tools/sakai-tasks-mcp-macos/run.sh`
+   - **AI に設定ファイルへの追記を依頼する場合のプロンプト例:**
+     ```text
+     あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
+     名前: sakai-tasks
+     コマンド: /Users/username/tools/sakai-tasks-mcp-macos/run.sh
+     ```
+3. AI アプリを再起動します。
+4. AI のチャット欄で「**初期設定を開いて**」と指示します。
+5. 設定画面が開いたら、所属大学のドメイン（例: `tact.ac.thers.ac.jp` や `panda.ecs.kyoto-u.ac.jp` 等）を登録し、「保存して閉じる」を押します。
+
+---
+
+## 📚 ドキュメント & 開発者向け情報
+
+- **[全体設計書 (`docs/architecture.md`)](docs/architecture.md)** / **[Web 版](https://project-sakai-mcp.github.io/sakai-tasks-mcp/)**
+- **[開発者ガイド (`docs/guide.md`)](docs/guide.md)**
+- **[Sakai API リファレンス (`docs/sakai_api_reference.md`)](docs/sakai_api_reference.md)**
+- **[認証・セッション仕様書 (`docs/auth_and_session_spec.md`)](docs/auth_and_session_spec.md)**
