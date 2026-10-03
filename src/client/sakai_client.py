@@ -37,19 +37,19 @@ class SakaiClient:
 
     def __init__(
         self,
-        host: str = Config.SAKAI_HOST,
-        timeout: float = Config.REQUEST_TIMEOUT,
-        cache_ttl: float = Config.CACHE_TTL,
+        host: str | None = None,
+        timeout: float | None = None,
+        cache_ttl: float | None = None,
     ):
         """
         Args:
-            host: Sakai ホスト名 (デフォルト: Config.SAKAI_HOST)
-            timeout: HTTP リクエストのタイムアウト秒数 (デフォルト: Config.REQUEST_TIMEOUT)
-            cache_ttl: 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (デフォルト: Config.CACHE_TTL)
+            host: Sakai ホスト名 (未指定時は Config.SAKAI_HOST)
+            timeout: HTTP リクエストのタイムアウト秒数 (未指定時は Config.REQUEST_TIMEOUT)
+            cache_ttl: 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (未指定時は Config.CACHE_TTL)
         """
-        self.host = host
-        self.timeout = timeout
-        self.cache_ttl = cache_ttl
+        self.host = host or Config.SAKAI_HOST
+        self.timeout = timeout if timeout is not None else Config.REQUEST_TIMEOUT
+        self.cache_ttl = cache_ttl if cache_ttl is not None else Config.CACHE_TTL
 
         self._http_client: httpx.AsyncClient | None = None
         self._client_lock: asyncio.Lock | None = None
@@ -393,7 +393,7 @@ class SakaiClient:
         site_id: str | None = None,
         favorites_only: bool = True,
         announcement_id: str | None = None,
-        n: int = Config.DEFAULT_ANNOUNCEMENT_LIMIT,
+        n: int | None = None,
         include_details: bool = True,
     ) -> list[Announcement]:
         """
@@ -403,12 +403,14 @@ class SakaiClient:
             site_id: 特定講義で絞り込む場合のサイト ID (未指定時は全講義)
             favorites_only: True の場合はお気に入り講義のお知らせのみ取得 (デフォルト: True)
             announcement_id: 特定の 1 件のみを取得する場合のお知らせ ID
-            n: 取得件数 (デフォルト: Config.DEFAULT_ANNOUNCEMENT_LIMIT)
+            n: 取得件数 (未指定時は Config.DEFAULT_ANNOUNCEMENT_LIMIT)
             include_details: True の場合は本文・添付ファイル詳細を含める (デフォルト: True)
 
         Returns:
             list[Announcement]: お知らせモデル一覧
         """
+        if n is None:
+            n = Config.DEFAULT_ANNOUNCEMENT_LIMIT
         site_names, site_tool_pages = await self._resolve_site_context(site_id, favorites_only)
         fetch_limit = max(n * 5, 50) if favorites_only and not site_id else n
         endpoint = endpoints.ANNOUNCEMENT_USER if not site_id else endpoints.announcement_site(site_id)
@@ -499,7 +501,7 @@ class SakaiClient:
 
     async def get_upcoming_deadlines(
         self,
-        days: int = Config.DEFAULT_DEADLINE_DAYS,
+        days: int | None = None,
         favorites_only: bool = True,
     ) -> list[SakaiTask]:
         """
@@ -507,12 +509,14 @@ class SakaiClient:
         ユーザーから「直近の課題を教えて」と尋ねられた際に最適な統合メソッド。
 
         Args:
-            days: 何日後までの締切を対象とするか (デフォルト: Config.DEFAULT_DEADLINE_DAYS)
+            days: 何日後までの締切を対象とするか (未指定時は Config.DEFAULT_DEADLINE_DAYS)
             favorites_only: True の場合はお気に入り講義のみ対象 (デフォルト: True)
 
         Returns:
             list[SakaiTask]: 締切昇順でソートされた未提出タスク一覧
         """
+        if days is None:
+            days = Config.DEFAULT_DEADLINE_DAYS
         now = datetime.now(timezone.utc)
         limit_date = now + timedelta(days=days)
 

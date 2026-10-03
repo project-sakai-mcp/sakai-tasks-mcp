@@ -104,13 +104,16 @@ def load_all_cookies(
 
 
 def load_sakai_cookies(
-    host: str = Config.SAKAI_HOST,
+    host: str | None = None,
     file_path: Path = Config.SESSION_FILE_PATH,
 ) -> dict[str, str] | None:
     """
     保存済み Cookie のうち Sakai ホストに適用されるものだけを抽出し、
     httpx.AsyncClient 用の {name: value} 形式で返す。
     """
+    if not host:
+        host = Config.SAKAI_HOST
+
     cookies = load_all_cookies(file_path)
 
     if cookies is None:
