@@ -18,40 +18,48 @@
 
   <!-- 2. 権限詳細説明 (アコーディオン / details) -->
   <details style="margin-top: 10px;">
-    <summary>▶ 📖 各利用権限の詳しい説明を見る（クリックで展開）</summary>
+    <summary>📖 各利用権限の説明を表示</summary>
     <div style="padding: 8px; border: 1px solid #ccc; margin-top: 5px;">
       <ul>
-        <li><strong>全て (ALLOW_ALL)</strong>: 課題指示文・カレンダー締切・講義資料ファイルのダウンロードすべてを AI に許可します。</li>
-        <li><strong>強 (TEXT_ONLY / デフォルト)</strong>: 課題指示文・締切の対話は許可しますが、講義資料ファイルのダウンロードを禁止します。</li>
-        <li><strong>弱 (SCHEDULE_ONLY)</strong>: 締切・カレンダー予定情報のみ取得を許可し、課題指示文・本文・講義資料はマスクします。</li>
-        <li><strong>無効 (BLOCKED)</strong>: AI から講義情報の取得を完全に除外・隠蔽します。</li>
+        <li><strong>全て</strong>: 課題指示文・カレンダー締切・講義資料ファイルのダウンロードすべてを AI に許可します。</li>
+        <li><strong>強</strong>: 課題指示文・締切の対話は許可しますが、講義資料ファイルのダウンロードを禁止します。</li>
+        <li><strong>弱</strong>: 締切・カレンダー予定情報のみ取得を許可し、課題指示文・本文・講義資料はマスクします。</li>
+        <li><strong>無効</strong>: AI から講義情報の取得を完全に除外・隠蔽します。</li>
       </ul>
     </div>
   </details>
 
-  <!-- 3 & 4. ポリシー一括設定バー & 講義絞り込み検索 -->
+  <!-- 3 & 4. 講義絞り込み検索 -->
   <fieldset style="margin-top: 10px;">
     <legend>🛡️ 講義別 AI 利用ポリシー設定</legend>
     <div style="margin-bottom: 10px;">
-      <button type="button" id="btn-all-allow">すべて『全て』</button>
-      <button type="button" id="btn-all-text">すべて『強』</button>
-      <button type="button" id="btn-all-schedule">すべて『弱』</button>
-      <button type="button" id="btn-all-blocked">すべて『無効』</button>
-      <span style="margin-left: 20px;">
-        <label for="search-box">🔍 講義名で絞り込み:</label>
-        <input type="text" id="search-box" placeholder="講義名を入力...">
-      </span>
+      <label for="search-box">🔍 講義名で絞り込み:</label>
+      <input type="text" id="search-box" style="width: 250px;" placeholder="講義名を入力...">
     </div>
 
     <!-- 5. 講義別ポリシー設定表 -->
     <table border="1" id="courses-table" style="width: 100%; border-collapse: collapse;">
       <thead>
         <tr>
-          <th>講義名 (★お気に入り優先)</th>
+          <th rowspan="2" style="vertical-align: middle;">講義名</th>
           <th style="width: 80px; text-align: center;">全て</th>
           <th style="width: 80px; text-align: center;">強</th>
           <th style="width: 80px; text-align: center;">弱</th>
           <th style="width: 80px; text-align: center;">無効</th>
+        </tr>
+        <tr>
+          <th style="text-align: center; padding: 4px;">
+            <input type="radio" name="batch_policy" id="btn-all-allow" title="すべて『全て』に設定" style="cursor: pointer;">
+          </th>
+          <th style="text-align: center; padding: 4px;">
+            <input type="radio" name="batch_policy" id="btn-all-text" title="すべて『強』に設定" style="cursor: pointer;">
+          </th>
+          <th style="text-align: center; padding: 4px;">
+            <input type="radio" name="batch_policy" id="btn-all-schedule" title="すべて『弱』に設定" style="cursor: pointer;">
+          </th>
+          <th style="text-align: center; padding: 4px;">
+            <input type="radio" name="batch_policy" id="btn-all-blocked" title="すべて『無効』に設定" style="cursor: pointer;">
+          </th>
         </tr>
       </thead>
       <tbody id="courses-tbody">
@@ -122,21 +130,26 @@
       document.getElementById('default-deadline-days').value = data.default_deadline_days;
       document.getElementById('default-announcement-limit').value = data.default_announcement_limit;
 
-      // 5. 講義一覧
+      // 5. 講義一覧 (お気に入りとその他に分離)
       globalCourses = data.courses;
       var tbody = document.getElementById('courses-tbody');
       tbody.innerHTML = '';
 
       var policies = ['allow_all', 'text_only', 'schedule_only', 'blocked'];
+      var favCourses = globalCourses.filter(function(c) { return c.is_favorite; });
+      var otherCourses = globalCourses.filter(function(c) { return !c.is_favorite; });
 
-      globalCourses.forEach(function(course) {
+      var otherRowsCollapsed = true;
+
+      function createCourseRow(course, isFav) {
         var tr = document.createElement('tr');
         tr.dataset.courseId = course.id;
         tr.dataset.courseTitle = course.title.toLowerCase();
+        tr.dataset.isFavorite = isFav ? "true" : "false";
 
-        // 講義名セル (★付き)
+        // 講義名セル
         var tdTitle = document.createElement('td');
-        var prefix = course.is_favorite ? '★ ' : '  ';
+        var prefix = isFav ? '★ ' : '  ';
         tdTitle.textContent = prefix + course.title;
         tr.appendChild(tdTitle);
 
@@ -151,39 +164,126 @@
           if (course.current_policy === pol) {
             radio.checked = true;
           }
+          radio.addEventListener('change', updateBatchRadioState);
           tdRadio.appendChild(radio);
           tr.appendChild(tdRadio);
         });
 
-        tbody.appendChild(tr);
+        return tr;
+      }
+
+      // お気に入り講義を描画
+      favCourses.forEach(function(course) {
+        tbody.appendChild(createCourseRow(course, true));
       });
+
+      // お気に入り以外の講義が存在する場合、トグル見出し行と各講義行を追加
+      if (otherCourses.length > 0) {
+        var toggleTr = document.createElement('tr');
+        toggleTr.id = 'other-courses-header-row';
+        toggleTr.style.backgroundColor = '#f0f0f0';
+        toggleTr.style.cursor = 'pointer';
+        toggleTr.style.userSelect = 'none';
+
+        var toggleTd = document.createElement('td');
+        toggleTd.colSpan = 5;
+        toggleTd.style.fontSize = '13px';
+        toggleTd.style.color = '#3d3d3d';
+        function updateToggleText() {
+          toggleTd.textContent = 'お気に入り以外の講義 (' + otherCourses.length + ' 件) を' + (otherRowsCollapsed ? '表示...' : '非表示');
+        }
+        updateToggleText();
+
+        toggleTr.appendChild(toggleTd);
+        tbody.appendChild(toggleTr);
+
+        otherCourses.forEach(function(course) {
+          var tr = createCourseRow(course, false);
+          tr.className = 'other-course-row';
+          tr.style.display = otherRowsCollapsed ? 'none' : '';
+          tbody.appendChild(tr);
+        });
+
+        toggleTr.addEventListener('click', function() {
+          otherRowsCollapsed = !otherRowsCollapsed;
+          updateToggleText();
+          var otherRows = document.querySelectorAll('.other-course-row');
+          var query = document.getElementById('search-box').value.toLowerCase().trim();
+          otherRows.forEach(function(row) {
+            if (otherRowsCollapsed) {
+              row.style.display = 'none';
+            } else {
+              var title = row.dataset.courseTitle;
+              row.style.display = (query === '' || title.indexOf(query) !== -1) ? '' : 'none';
+            }
+          });
+        });
+      }
+
+      updateBatchRadioState();
     }
 
-    // 3. 一括適用ボタン
+    // 3. 一括適用ラジオボタン
     function setAllPolicies(policyValue) {
       var radios = document.querySelectorAll('#courses-tbody input[type="radio"][value="' + policyValue + '"]');
       radios.forEach(function(radio) {
         radio.checked = true;
       });
+      updateBatchRadioState();
     }
 
-    document.getElementById('btn-all-allow').addEventListener('click', function() { setAllPolicies('allow_all'); });
-    document.getElementById('btn-all-text').addEventListener('click', function() { setAllPolicies('text_only'); });
-    document.getElementById('btn-all-schedule').addEventListener('click', function() { setAllPolicies('schedule_only'); });
-    document.getElementById('btn-all-blocked').addEventListener('click', function() { setAllPolicies('blocked'); });
+    // 各講義の選択状態をもとに、全行一致していればヘッダーの丸ボタンをONにする
+    function updateBatchRadioState() {
+      var policies = [
+        { id: 'btn-all-allow', value: 'allow_all' },
+        { id: 'btn-all-text', value: 'text_only' },
+        { id: 'btn-all-schedule', value: 'schedule_only' },
+        { id: 'btn-all-blocked', value: 'blocked' }
+      ];
 
-    // 4. 講義絞り込み検索
+      var totalRows = globalCourses.length;
+      if (totalRows === 0) return;
+
+      policies.forEach(function(item) {
+        var checkedCount = document.querySelectorAll('#courses-tbody input[type="radio"][value="' + item.value + '"]:checked').length;
+        var headerRadio = document.getElementById(item.id);
+        headerRadio.checked = (checkedCount === totalRows);
+      });
+    }
+
+    document.getElementById('btn-all-allow').addEventListener('change', function() { setAllPolicies('allow_all'); });
+    document.getElementById('btn-all-text').addEventListener('change', function() { setAllPolicies('text_only'); });
+    document.getElementById('btn-all-schedule').addEventListener('change', function() { setAllPolicies('schedule_only'); });
+    document.getElementById('btn-all-blocked').addEventListener('change', function() { setAllPolicies('blocked'); });
+
+    // 4. 講義絞り込み検索 (検索時は該当する行を自動展開して表示)
     document.getElementById('search-box').addEventListener('input', function() {
       var query = this.value.toLowerCase().trim();
-      var rows = document.querySelectorAll('#courses-tbody tr');
-      rows.forEach(function(row) {
-        var title = row.dataset.courseTitle;
-        if (query === '' || title.indexOf(query) !== -1) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
-      });
+      var rows = document.querySelectorAll('#courses-tbody tr[data-course-id]');
+      var toggleRow = document.getElementById('other-courses-header-row');
+
+      if (query !== '') {
+        // 検索文字列があるときは一致した行をすべて表示
+        if (toggleRow) toggleRow.style.display = 'none';
+        rows.forEach(function(row) {
+          var title = row.dataset.courseTitle;
+          if (title.indexOf(query) !== -1) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      } else {
+        // 検索がクリアされたら折りたたみ状態を復元
+        if (toggleRow) toggleRow.style.display = '';
+        rows.forEach(function(row) {
+          if (row.dataset.isFavorite === 'true') {
+            row.style.display = '';
+          } else {
+            row.style.display = (document.getElementById('other-courses-header-row') && !row.classList.contains('other-course-row')) ? '' : (row.style.display = (toggleRow && toggleRow.textContent.indexOf('折りたたむ') !== -1 ? '' : 'none'));
+          }
+        });
+      }
     });
 
     // 7. 保存とキャンセル
