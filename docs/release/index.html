@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sakai Tasks MCP - ダウンロード & インストールガイド</title>
+  <style>
+    :root {
+      --primary-color: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.6;
+    }
+
+    /* ナビゲーションバー */
+    .navbar {
+      background-color: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+      padding: 6px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar .logo {
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--text-main);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .navbar .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .navbar .nav-links li {
+      display: flex;
+      align-items: center;
+      margin: 0;
+    }
+    .navbar .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      transition: color 0.15s ease;
+    }
+    .navbar .nav-links a:hover {
+      color: var(--primary-color);
+    }
+
+    /* ヒーローヘッダー (タイトル・ボタンブロック) */
+    .hero {
+      background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+      padding: 30px 20px 40px;
+      text-align: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .hero-content {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .hero h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      color: var(--text-main);
+    }
+    .hero p.tagline {
+      font-size: 1.25rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+    .hero-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-main);
+      background-color: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      text-decoration: none;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background-color: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .btn svg {
+      flex-shrink: 0;
+    }
+
+    /* 横いっぱいのチャット画像セクション */
+    .hero-image-section {
+      width: 100%;
+      background-color: #0d1117;
+      border-top: 1px solid #1e293b;
+      border-bottom: 1px solid #1e293b;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+    }
+    .hero-image-section img {
+      width: 100%;
+      max-width: 1440px;
+      height: auto;
+      display: block;
+      object-fit: cover;
+    }
+
+    /* メインコンテンツエリア (横幅を広げ、オープンなレイアウトに) */
+    .container {
+      max-width: 1100px;
+      margin: 40px auto 80px;
+      padding: 0 32px;
+    }
+    .content-section {
+      padding: 48px 0;
+      border-bottom: 1.5px solid #cbd5e1; /* 少し濃いめのスレートグレーに調整 */
+    }
+    .content-section:last-of-type {
+      border-bottom: none;
+    }
+    .content-section h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 20px;
+      color: var(--text-main);
+    }
+    .content-section p {
+      font-size: 1.05rem;
+      color: #334155;
+      line-height: 1.75;
+    }
+    ol, ul {
+      margin-left: 24px;
+      margin-top: 16px;
+    }
+    li {
+      margin-bottom: 14px;
+      font-size: 1rem;
+      color: #334155;
+    }
+    pre {
+      background-color: #0f172a;
+      color: #f8fafc;
+      padding: 18px 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92rem;
+      margin-top: 12px;
+      max-width: 800px;
+    }
+    table.tool-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 0.95rem;
+    }
+    table.tool-table th, table.tool-table td {
+      padding: 12px 14px;
+      border: 1px solid var(--border-color);
+      text-align: left;
+    }
+    table.tool-table th {
+      background-color: #f1f5f9;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    table.tool-table code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9rem;
+      background-color: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #0f172a;
+    }
+    footer {
+      text-align: center;
+      margin: 60px 0 40px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    footer a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ナビゲーションバー -->
+  <nav class="navbar">
+    <a href="#" class="logo">Sakai Tasks MCP</a>
+    <ul class="nav-links">
+      <li><a href="#about">概要</a></li>
+      <li><a href="#features">機能</a></li>
+      <li><a href="#download-windows">Windows</a></li>
+      <li><a href="#download-mac">macOS</a></li>
+    </ul>
+  </nav>
+
+  <!-- ヒーローセクション (タイトル + ボタン) -->
+  <header class="hero">
+    <div class="hero-content">
+      <h1>Sakai Tasks MCP</h1>
+      <p class="tagline">大学の Sakai LMS と AI をつなぐ MCP サーバ</p>
+      <div class="hero-buttons">
+        <a href="#download-windows" class="btn btn-primary">
+          <svg width='32' height='32' xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M96 157.7L279.6 132.4L279.6 309.8L96 309.8L96 157.7zM96 482.3L279.6 507.6L279.6 332.4L96 332.4L96 482.3zM299.8 510.3L544 544L544 332.4L299.8 332.4L299.8 510.3zM299.8 129.7L299.8 309.8L544 309.8L544 96L299.8 129.7z"/></svg>
+          Windows インストール
+        </a>
+        <a href="#download-mac" class="btn btn-primary">
+          <svg width='32' height='32' xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M447.1 332.7C446.9 296 463.5 268.3 497.1 247.9C478.3 221 449.9 206.2 412.4 203.3C376.9 200.5 338.1 224 323.9 224C308.9 224 274.5 204.3 247.5 204.3C191.7 205.2 132.4 248.8 132.4 337.5C132.4 363.7 137.2 390.8 146.8 418.7C159.6 455.4 205.8 545.4 254 543.9C279.2 543.3 297 526 329.8 526C361.6 526 378.1 543.9 406.2 543.9C454.8 543.2 496.6 461.4 508.8 424.6C443.6 393.9 447.1 334.6 447.1 332.7zM390.5 168.5C417.8 136.1 415.3 106.6 414.5 96C390.4 97.4 362.5 112.4 346.6 130.9C329.1 150.7 318.8 175.2 321 202.8C347.1 204.8 370.9 191.4 390.5 168.5z"/></svg>
+          macOS インストール
+        </a>
+        <a href="https://github.com/project-sakai-mcp/sakai-tasks-mcp" target="_blank" class="btn btn-secondary">
+          <svg width='32' height='32' xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M280.5 426.5C214.5 418.5 168 371 168 309.5C168 284.5 177 257.5 192 239.5C185.5 223 186.5 188 194 173.5C214 171 241 181.5 257 196C276 190 296 187 320.5 187C345 187 365 190 383 195.5C398.5 181.5 426 171 446 173.5C453 187 454 222 447.5 239C463.5 258 472 283.5 472 309.5C472 371 425.5 417.5 358.5 426C375.5 437 387 461 387 488.5L387 540.5C387 555.5 399.5 564 414.5 558C505 523.5 576 433 576 321C576 179.5 461 64 319.5 64C178 64 64 179.5 64 321C64 432 134.5 524 229.5 558.5C243 563.5 256 554.5 256 541L256 501C249 504 240 506 232 506C199 506 179.5 488 165.5 454.5C160 441 154 433 142.5 431.5C136.5 431 134.5 428.5 134.5 425.5C134.5 419.5 144.5 415 154.5 415C169 415 181.5 424 194.5 442.5C204.5 457 215 463.5 227.5 463.5C240 463.5 248 459 259.5 447.5C268 439 274.5 431.5 280.5 426.5z"/></svg>
+          GitHub →
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="hero-image-section">
+    <img src="chat_full.png" alt="Sakai Tasks MCP の AI チャット連携の様子">
+  </div>
+
+  <div class="container">
+    <section class="content-section" id="about">
+      <h2>概要</h2>
+      <p>
+        <strong>Sakai Tasks MCP</strong> は、大学で利用されている Sakai LMS（京都大学 PandA、名古屋大学 TACT など）から、通知や課題の締め切り、講義資料などを取得し、Claude Desktop や Cursor などの AI アシスタントと連携するための MCP (Model Context Protocol) サーバーです。
+      </p>
+      <p style="margin-top: 12px;">
+        「今週の課題の締切は？」「重要なお知らせはある？」「講義資料をダウンロードして」と AI に話しかけたら Sakai 上の情報を取得できるようにします。
+      </p>
+    </section>
+
+    <!-- 2. 機能 (Features) -->
+    <section class="content-section" id="features">
+      <h2>機能</h2>
+      <p style="font-size: 0.95rem; color: #475569;">
+        AI は指示に応じて以下の MCP ツールを選び、呼び出すことができます。
+      </p>
+
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th style="width: 28%;">ツール名</th>
+            <th>説明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>get_upcoming_deadlines</code></td>
+            <td>締切がある課題・小テストを取得し、期限順に整理して返します。</td>
+          </tr>
+          <tr>
+            <td><code>get_course_dashboard</code></td>
+            <td>指定した講義の状況（課題、小テスト、直近のお知らせ、授業資料）を取得します。</td>
+          </tr>
+          <tr>
+            <td><code>get_announcements</code></td>
+            <td>通知を取得します。</td>
+          </tr>
+          <tr>
+            <td><code>get_assignments</code></td>
+            <td>課題の一覧または詳細（提出期限、指示文、添付資料など）を取得します。</td>
+          </tr>
+          <tr>
+            <td><code>get_quizzes</code></td>
+            <td>小テスト・オンラインクイズの一覧や締切情報を取得します。</td>
+          </tr>
+          <tr>
+            <td><code>get_calendar_events</code></td>
+            <td>カレンダーに登録されたスケジュールやイベント予定を取得します。</td>
+          </tr>
+          <tr>
+            <td><code>get_course_materials</code></td>
+            <td>講義の配布資料リンク・フォルダ一覧を取得します。</td>
+          </tr>
+          <tr>
+            <td><code>download_material</code></td>
+            <td>講義資料や添付ファイルを指定のローカルフォルダにダウンロードします。</td>
+          </tr>
+          <tr>
+            <td><code>list_courses</code></td>
+            <td>所属している講義一覧と講義IDを取得します。</td>
+          </tr>
+          <tr>
+            <td><code>open_settings</code></td>
+            <td>大学ドメインの変更や講義ごとの情報開示ポリシーなどを設定する GUI 画面を起動します。</td>
+          </tr>
+          <tr>
+            <td><code>check_auth_status</code></td>
+            <td>大学ポータルのログインセッションが有効かどうかを確認します。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="content-section" id="download-windows">
+      <h2>Windows インストール</h2>
+      <div style="margin: 20px 0;">
+        <a href="https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest" class="btn">
+          Windows 版 ZIP をダウンロード (v1.0.0)
+        </a>
+      </div>
+      <h3 style="font-size: 1.15rem; margin-top: 28px; margin-bottom: 12px; color: var(--text-main);">セットアップ手順</h3>
+      <ol>
+        <li>ダウンロードした ZIP ファイルを任意のフォルダ（例: <code>C:\tools</code> など）に解凍します。</li>
+        <li>お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の <code>run.bat</code> のパスを登録します。
+          <p style="margin-top: 8px; font-size: 0.95rem; color: #475569;">
+            実行ファイルのパス例: <code>C:\tools\sakai-tasks-mcp-windows\run.bat</code>
+          </p>
+          <div style="margin-top: 10px; background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 12px 14px;">
+            <p style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">AI に設定ファイルへの追記を依頼する場合のプロンプト例:</p>
+            <pre style="margin-top: 6px;"><code>あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
+名前: sakai-tasks
+コマンド: C:\tools\sakai-tasks-mcp-windows\run.bat</code></pre>
+          </div>
+        </li>
+        <li>AI アプリを再起動します。</li>
+        <li>AI のチャット欄で「<strong>初期設定を開いて</strong>」と指示します。</li>
+        <li>設定画面が開いたら、所属大学のドメイン（例: <code>tact.ac.thers.ac.jp</code> や <code>panda.ecs.kyoto-u.ac.jp</code> 等）を登録し、「保存して閉じる」を押します。</li>
+      </ol>
+    </section>
+
+    <section class="content-section" id="download-mac">
+      <h2>macOS インストール</h2>
+      <div style="margin: 20px 0;">
+        <a href="https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest" class="btn">
+          macOS 版 ZIP をダウンロード (v1.0.0)
+        </a>
+      </div>
+      <h3 style="font-size: 1.15rem; margin-top: 28px; margin-bottom: 12px; color: var(--text-main);">セットアップ手順</h3>
+      <ol>
+        <li>ダウンロードした ZIP ファイルを任意のフォルダ（例: <code>/Users/username/tools</code> や <code>~/tools</code> など）に解凍します。</li>
+        <li>お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の <code>run.sh</code> のパスを登録します。
+          <p style="margin-top: 8px; font-size: 0.95rem; color: #475569;">
+            実行ファイルのパス例: <code>/Users/username/tools/sakai-tasks-mcp-macos/run.sh</code>
+          </p>
+          <div style="margin-top: 10px; background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 12px 14px;">
+            <p style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">AI に設定ファイルへの追記を依頼する場合のプロンプト例:</p>
+            <pre style="margin-top: 6px;"><code>あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
+名前: sakai-tasks
+コマンド: /Users/username/tools/sakai-tasks-mcp-macos/run.sh</code></pre>
+          </div>
+        </li>
+        <li>AI アプリを再起動します。</li>
+        <li>AI のチャット欄で「<strong>初期設定を開いて</strong>」と指示します。</li>
+        <li>設定画面が開いたら、所属大学のドメイン（例: <code>tact.ac.thers.ac.jp</code> や <code>panda.ecs.kyoto-u.ac.jp</code> 等）を登録し、「保存して閉じる」を押します。</li>
+      </ol>
+    </section>
+
+    <!-- フッター -->
+    <footer>
+      <p>
+        <a href="../">システム設計書・技術仕様を見る</a> | 
+        <a href="https://github.com/project-sakai-mcp/sakai-tasks-mcp" target="_blank">GitHub リポジトリ</a>
+      </p>
+    </footer>
+  </div>
+</body>
+</html>
