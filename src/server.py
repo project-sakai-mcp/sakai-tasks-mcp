@@ -36,20 +36,40 @@ from src.policy import (
 )
 
 SERVER_INSTRUCTIONS = """
-Sakai LMS (TACT) 連携MCPサーバー。
-【ツール選択指針】
-- 直近の締切/課題確認: まず `get_upcoming_deadlines` を使う。
-- 特定講義の総合確認: `list_courses` で site_id を特定後、`get_course_dashboard` を使う (個別ツールの乱用を避ける)。
-- 講義名から調べる場合: `site_id` が不明な時は必ず `list_courses` で特定する。
-- フィルター: `favorites_only` は原則デフォルト(True)のまま呼ぶ (「全講義」「過去の」等の明示時のみ False)。
-- 認証切れ: `check_auth_status` で確認し、必要なら `open_settings` を案内する。
-【並列呼び出し・バッチ処理の指針】
-- 本サーバーは完全非同期 (asyncio)・Singleflight (同一リクエスト合流)・キャッシュ機構を備えており、高並行処理に最適化されています。
-- 複数科目にまたがる調査や複数ファイルの保存を行う際は、外部スクリプトを作成せず、本MCPツールを1ターンで並列（複数同時）に呼び出してください。サーバー側で安全かつ高速に並行処理されます。
-- 推奨ケース:
-  1. 複数科目の横断確認: 複数科目の `get_course_dashboard` や `get_announcements` の同時取得
-  2. 複数課題の深掘り: 複数課題に対する `get_assignments(assignment_id=..., include_details=True)` の同時取得
-  3. 資料の一括確認・保存: 複数科目の `get_course_materials` や複数ファイルの `download_material` の同時実行
+大学 LMS「Sakai (TACT)」から課題・小テスト・お知らせ・講義資料を安全に取得・管理するための MCP サーバーです。
+
+【1. Sakai LMS の特異な仕様と大学運用の前提知識】
+- 「お気に入り (Favorites)」＝「今学期の現役講義」:
+  大学の Sakai では過去数年分の履修済み講義が消えずに蓄積されます。学生は「今学期受講中の講義」をピン留め（★お気に入り登録）して利用するため、ユーザーから「過去の講義」「全履歴」と明示されない限り、講義関連ツールの `favorites_only` は必ずデフォルトの True のまま呼び出してください (False にすると数十件の無関係な過去講義が混入します)。
+- 学期・クォーター表記の包含関係:
+  日本の大学ではクォーター制（「秋1期」「秋2期」等）とセメスター制（「秋」「後学期」等）が混在します。ユーザーが「秋1期の講義」と指定した場合、セメスター制の「秋」「後学期」科目も含まれるため、単純な「秋1期」の文字列完全一致で除外しないでください。
+- テスト (SAMIGO) の仕様:
+  小テストは Sakai の API 仕様上、全科目一括取得ができません (講義別取得のみ)。また、学生権限の API では提出済みかどうかのフラグが返らない制約があります。
+
+【2. ツールの使用順序・標準ワークフロー】
+特定講義の情報を調べるツール (`get_course_dashboard`, `get_course_materials` 等) は内部識別子である `site_id` (例: "n_2026_1000195") が必須です。
+ユーザーから「講義名」で指定された場合は、必ず以下の順序で実行してください：
+  Step 1 (講義IDの特定):
+    まず `list_courses` を呼び出し、講義名に対応する `site_id` を特定する。(※勝手に ID を推測・捏造しないこと)
+  Step 2 (講義情報の取得):
+    特定した `site_id` を用いて、目的のツール (`get_course_dashboard`, `get_course_materials` 等) を呼び出す。
+    ※複数講義を調べる場合は、特定した複数の `site_id` に対して Step 2 のツールを 1 ターンで並列呼び出しする。
+
+【3. 集約ツールの優先と重複呼び出しの防止】
+本サーバーには「集約ツール」と「個別ツール」があります。不要な重複取得（同じ情報の二重取得）を避けるため、以下の指針に従ってください。
+- 直近の課題・小テスト確認:
+  個別ツール (`get_assignments`, `get_quizzes`, `get_calendar_events`) を個別に呼ぶのではなく、統合・締切ソート済みの集約ツール `get_upcoming_deadlines` を第一選択としてください。
+- 特定講義の総合確認:
+  課題・テスト・お知らせ・資料を一度に把握したい場合は、個別ツールを乱用せず、集約ツール `get_course_dashboard` を 1 回呼び出してください。個別ツールは「資料一覧だけ見たい」「お知らせだけ見たい」といった単一目的の場合のみ使用します。
+
+【4. 並列呼び出し・バッチ処理の指針】
+- 本サーバーは内部で完全非同期 (asyncio)・Singleflight (同一リクエスト合流)・TTL キャッシュを備えており、高並行処理に最適化されています。
+- 複数講義のダッシュボード比較、複数科目のお知らせ確認、複数ファイルのダウンロード (`download_material`) 等を行う際は、外部 Python スクリプトを作成せず、本 MCP ツールを 1 ターンで並列（複数同時）に呼び出してください。サーバー側で安全かつ高速に並行処理されます。
+
+【5. 設定変更 & 認証仕様】
+- 講義資料ファイルや添付ファイルのダウンロードは、講義ごとの AI ポリシーが ALLOW_ALL の場合のみ許可されます。ユーザーからポリシー変更や接続先ドメイン変更を求められた場合は、設定画面起動ツール `open_settings` を案内してください。
+- 認証セッションの有効性は `check_auth_status` で確認できます。
+- セッション切れ（未ログイン）の場合、データ取得時にサーバーが自動的に別プロセスでログイン画面 (WebView) を起動して再認証を行います。AI 側でログイン用の別ツールを呼ぶ必要はありません。
 """
 
 mcp = FastMCP("sakai-tasks-mcp", instructions=SERVER_INSTRUCTIONS.strip())
@@ -96,6 +116,8 @@ async def get_assignments(
         assignment_id: 特定の 1 課題のみを取得する場合の課題 ID。
         favorites_only: 原則としてデフォルトの True のまま（または指定を省略して）呼び出してください。ユーザーから「全講義の課題」「過去の課題も含めて」と明示された場合のみ False を指定します。
         include_details: True の場合は課題の指示文 (instructions) や添付ファイル情報も含めます。
+
+    ※ 講義全体の課題・テスト・連絡・資料をまとめて確認したい場合は、個別ツールではなく `get_course_dashboard` を使用してください。
     """
     client = get_client()
     tasks = await client.get_assignments(
@@ -118,6 +140,8 @@ async def get_quizzes(
     Args:
         site_id: 特定の講義で絞り込む場合の講義サイト ID。
         favorites_only: 原則としてデフォルトの True のまま（または指定を省略して）呼び出してください。ユーザーから明示的に指示された場合のみ False を指定します。
+
+    ※ 講義全体の課題・テスト・連絡・資料をまとめて確認したい場合は、個別ツールではなく `get_course_dashboard` を使用してください。
     """
     client = get_client()
     tasks = await client.get_quizzes(site_id=site_id, favorites_only=favorites_only)
