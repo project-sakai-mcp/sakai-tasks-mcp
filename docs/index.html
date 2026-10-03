@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Sakai-Tasks-MCP アーキテクチャ設計書</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="Sakai LMS 連携 MCP サーバー sakai-tasks-mcp アーキテクチャ設計書">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+
+  <!-- Favicon (SVG) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%232563eb'/><text x='50' y='68' font-size='52' font-family='system-ui,sans-serif' font-weight='bold' fill='white' text-anchor='middle'>S</text></svg>">
+
+  <!-- Typography: Inter, Noto Sans JP, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Docsify Themeable (Simple Base) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple.css">
+
+  <!-- Minimal & Clean Professional Stylesheet -->
+  <style>
+    :root {
+      /* Base Theme Colors */
+      --theme-color: #2563eb;
+      --theme-color-dark: #1d4ed8;
+      --theme-color-light: #eff6ff;
+      --base-font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --code-font-family: 'JetBrains Mono', Consolas, Monaco, 'Andale Mono', monospace;
+      --base-font-size: 15px;
+      --base-line-height: 1.75;
+      --base-color: #1e293b;
+      --base-background-color: #ffffff;
+
+      /* Sidebar */
+      --sidebar-width: 310px;
+      --sidebar-background: #f8fafc;
+      --sidebar-border-color: #e2e8f0;
+      --sidebar-nav-link-color: #475569;
+      --sidebar-nav-link-color--active: #2563eb;
+      --sidebar-nav-link-font-weight--active: 600;
+      --sidebar-name-color: #0f172a;
+      --sidebar-name-font-weight: 700;
+      --sidebar-name-font-size: 16.5px;
+
+      /* Content Layout (Wide & Clean) */
+      --content-max-width: 1380px;
+      --heading-color: #0f172a;
+      --heading-h1-font-size: 26px;
+      --heading-h2-font-size: 20px;
+      --heading-h3-font-size: 16px;
+      --heading-h4-font-size: 14.5px;
+      --code-inline-background: #f1f5f9;
+      --code-inline-color: #0f172a;
+      --code-theme-background: #0f172a;
+      --code-theme-text: #f8fafc;
+
+      /* Tables */
+      --table-cell-padding: 10px 14px;
+      --table-header-background: #f8fafc;
+      --table-row-odd-background: #ffffff;
+      --table-row-even-background: #fafbfd;
+      --table-border-color: #e2e8f0;
+
+      /* Navbar */
+      --navbar-root-color: #475569;
+      --navbar-root-color--active: #2563eb;
+    }
+
+    body {
+      font-family: var(--base-font-family);
+      letter-spacing: -0.01em;
+      color: var(--base-color);
+      background-color: var(--base-background-color);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Top Navigation Bar */
+    .app-nav {
+      position: fixed;
+      top: 0;
+      right: 24px;
+      padding: 14px 0;
+      z-index: 100;
+    }
+    .app-nav ul {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      gap: 8px;
+      list-style: none;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .app-nav li a {
+      font-size: 0.86rem;
+      font-weight: 500;
+      color: var(--navbar-root-color);
+      text-decoration: none;
+      padding: 5px 12px;
+      border-radius: 6px;
+      background: #ffffff;
+      border: 1px solid var(--sidebar-border-color);
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .app-nav li a:hover, .app-nav li a.active {
+      color: var(--theme-color);
+      border-color: var(--theme-color);
+      background: var(--theme-color-light);
+    }
+
+    /* Sidebar Navigation */
+    .sidebar {
+      border-right: 1px solid var(--sidebar-border-color);
+    }
+    .sidebar .app-name {
+      padding: 24px 20px 12px;
+    }
+    .sidebar .app-name-link {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--sidebar-name-color) !important;
+      text-decoration: none;
+      letter-spacing: -0.02em;
+      line-height: 1.35;
+      display: block;
+    }
+    .sidebar-nav {
+      padding: 0 12px 30px;
+    }
+    .sidebar-nav ul {
+      padding-left: 12px;
+      margin: 4px 0;
+    }
+    .sidebar-nav > ul {
+      padding-left: 0;
+    }
+    .sidebar-nav li {
+      margin: 2px 0;
+    }
+    .sidebar-nav li > a {
+      font-size: 0.87rem;
+      padding: 5px 10px;
+      border-radius: 5px;
+      transition: all 0.15s ease;
+      line-height: 1.45;
+      color: var(--sidebar-nav-link-color);
+      text-decoration: none;
+      display: block;
+    }
+    .sidebar-nav li > a:hover {
+      background: rgba(37, 99, 235, 0.06);
+      color: var(--theme-color);
+    }
+    .sidebar-nav li.active > a {
+      background: rgba(37, 99, 235, 0.09);
+      color: var(--theme-color) !important;
+      font-weight: 600;
+    }
+
+    /* Search Bar Styling */
+    .sidebar .search {
+      padding: 0 16px 12px;
+      border-bottom: 1px solid var(--sidebar-border-color);
+      margin-bottom: 12px;
+    }
+    .sidebar .search input {
+      font-family: var(--base-font-family);
+      font-size: 0.85rem;
+      border: 1px solid var(--sidebar-border-color);
+      border-radius: 6px;
+      padding: 7px 12px;
+      background: #ffffff;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .sidebar .search input:focus {
+      border-color: var(--theme-color);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .sidebar .search .matching-post {
+      border-bottom: 1px solid var(--sidebar-border-color);
+      padding: 10px 0;
+    }
+    .sidebar .search .matching-post:last-child {
+      border-bottom: none;
+    }
+    .sidebar .search .matching-post h2 {
+      font-size: 0.95rem;
+      margin: 0 0 4px;
+      color: var(--heading-color);
+    }
+    .sidebar .search .matching-post p {
+      font-size: 0.82rem;
+      color: var(--sidebar-nav-link-color);
+      margin: 0;
+      line-height: 1.4;
+    }
+
+    /* Content Area & Markdown Section Layout (Wide & Clean) */
+    .content {
+      padding-top: 0;
+      top: 0;
+    }
+    .markdown-section {
+      max-width: var(--content-max-width) !important;
+      padding: 32px 48px 80px 48px !important;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    @media (max-width: 768px) {
+      .markdown-section {
+        padding: 24px 20px 60px 20px !important;
+      }
+    }
+
+    .markdown-section h1 {
+      font-size: 1.95rem;
+      font-weight: 700;
+      border-bottom: 2px solid var(--theme-color);
+      padding-bottom: 0.35em;
+      margin-top: 1.6em;
+      margin-bottom: 0.8em;
+      color: var(--heading-color);
+      letter-spacing: -0.02em;
+      scroll-margin-top: 70px;
+    }
+    .markdown-section h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      border-bottom: 1px solid var(--sidebar-border-color);
+      padding-bottom: 0.3em;
+      margin-top: 2em;
+      margin-bottom: 0.65em;
+      color: var(--heading-color);
+      letter-spacing: -0.01em;
+      scroll-margin-top: 70px;
+    }
+    .markdown-section h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-top: 1.6em;
+      margin-bottom: 0.5em;
+      color: var(--heading-color);
+      scroll-margin-top: 70px;
+    }
+    .markdown-section h4 {
+      font-size: 1.02rem;
+      font-weight: 600;
+      margin-top: 1.3em;
+      margin-bottom: 0.4em;
+      color: var(--heading-color);
+      scroll-margin-top: 70px;
+    }
+    .markdown-section p,
+    .markdown-section li {
+      line-height: 1.75;
+      color: var(--base-color);
+    }
+    .markdown-section hr {
+      border: 0;
+      border-top: 1px solid var(--sidebar-border-color);
+      margin: 2.2em 0;
+    }
+
+    /* Target highlight animation on anchor jump */
+    .heading-target-active,
+    .markdown-section h1:target,
+    .markdown-section h2:target,
+    .markdown-section h3:target,
+    .markdown-section h4:target {
+      animation: highlight-pulse 1.8s ease-out;
+    }
+    @keyframes highlight-pulse {
+      0% { background-color: rgba(37, 99, 235, 0.14); border-radius: 4px; }
+      100% { background-color: transparent; }
+    }
+
+    /* Anchor target placeholder */
+    .heading-anchor-target {
+      position: relative;
+      top: -70px;
+      display: block;
+      visibility: hidden;
+      height: 0;
+    }
+
+    /* Inline Code & Code Blocks */
+    .markdown-section code:not([class*="lang-"]):not([class*="language-"]) {
+      font-family: var(--code-font-family);
+      font-size: 0.88em;
+      background-color: var(--code-inline-background);
+      color: var(--code-inline-color);
+      padding: 0.16em 0.42em;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+    }
+    .markdown-section pre {
+      border-radius: 7px !important;
+      margin: 1.3em 0;
+      background-color: var(--code-theme-background) !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      position: relative;
+    }
+    .markdown-section pre > code {
+      font-family: var(--code-font-family);
+      font-size: 0.87rem;
+      line-height: 1.6;
+      color: var(--code-theme-text);
+      padding: 1.1em 1.3em;
+    }
+
+    /* Copy Code Button */
+    .docsify-copy-code-button {
+      font-family: var(--base-font-family) !important;
+      font-size: 0.76rem !important;
+      font-weight: 500 !important;
+      background: rgba(255, 255, 255, 0.12) !important;
+      color: #e2e8f0 !important;
+      border: 1px solid rgba(255, 255, 255, 0.2) !important;
+      border-radius: 4px !important;
+      padding: 4px 9px !important;
+      transition: all 0.15s ease !important;
+    }
+    .docsify-copy-code-button:hover {
+      background: rgba(255, 255, 255, 0.22) !important;
+      color: #ffffff !important;
+    }
+
+    /* Tables */
+    .markdown-section table {
+      width: 100%;
+      display: table;
+      border-collapse: collapse;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 1.6em 0;
+      border: 1px solid var(--table-border-color);
+    }
+    .markdown-section th {
+      background: var(--table-header-background);
+      font-weight: 600;
+      color: var(--heading-color);
+      padding: 10px 14px;
+      border-bottom: 2px solid var(--table-border-color);
+      font-size: 0.9rem;
+      text-align: left;
+    }
+    .markdown-section td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--table-border-color);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    .markdown-section tr:nth-child(even) {
+      background: var(--table-row-even-background);
+    }
+    .markdown-section tr:nth-child(odd) {
+      background: var(--table-row-odd-background);
+    }
+
+    /* Mermaid Diagrams */
+    .mermaid {
+      background: #ffffff;
+      border: 1px solid var(--sidebar-border-color);
+      border-radius: 8px;
+      padding: 24px 16px;
+      margin: 1.8em 0;
+      text-align: center;
+      overflow-x: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .mermaid svg {
+      max-width: 100% !important;
+      height: auto !important;
+      min-width: 260px;
+    }
+
+    /* Clean GitHub-style Alerts (No Emojis / Iconless) */
+    .markdown-section .alert {
+      border-left: 3.5px solid;
+      border-radius: 4px;
+      padding: 12px 16px;
+      margin: 1.4em 0;
+      font-size: 0.92rem;
+    }
+    .markdown-section .alert-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+    }
+    .markdown-section .alert-body {
+      margin: 0;
+    }
+    .markdown-section .alert-body > p:first-child {
+      margin-top: 0;
+    }
+    .markdown-section .alert-body > p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Alert Palette */
+    .alert-note {
+      background: #f8fafc;
+      border-color: #3b82f6;
+      color: #1e3a8a;
+    }
+    .alert-tip {
+      background: #f0fdf4;
+      border-color: #10b981;
+      color: #065f46;
+    }
+    .alert-important {
+      background: #faf5ff;
+      border-color: #8b5cf6;
+      color: #5b21b6;
+    }
+    .alert-warning {
+      background: #fffbeb;
+      border-color: #f59e0b;
+      color: #92400e;
+    }
+    .alert-caution {
+      background: #fef2f2;
+      border-color: #ef4444;
+      color: #991b1b;
+    }
+
+    /* Back to Top Button */
+    .back-to-top {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 99;
+      background: #ffffff;
+      color: #475569;
+      border: 1px solid var(--sidebar-border-color);
+      border-radius: 6px;
+      padding: 7px 13px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      transition: all 0.15s ease;
+      opacity: 0;
+      visibility: hidden;
+    }
+    .back-to-top.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    .back-to-top:hover {
+      color: var(--theme-color);
+      border-color: var(--theme-color);
+      box-shadow: 0 3px 10px rgba(37, 99, 235, 0.12);
+    }
+  </style>
+</head>
+<body>
+  <!-- Clean Top Navigation Bar (Iconless) -->
+  <nav class="app-nav">
+    <ul>
+      <li><a href="#/">トップ</a></li>
+      <li><a href="#1-全体アーキテクチャ--データフロー">1. 全体アーキテクチャ</a></li>
+      <li><a href="#2-ディレクトリ構成--ファイル責務">2. ディレクトリ構成</a></li>
+      <li><a href="#3-共通データモデル定義-srcmodelspy">3. データモデル</a></li>
+      <li><a href="#4-モジュール別詳細設計--公開インターフェース">4. 詳細設計</a></li>
+      <li><a href="#5-mcp-サーバー--ツール仕様-srcserverpy-srcpolicy">5. MCP ツール仕様</a></li>
+      <li><a href="#6-設定管理--ユーザー設定-gui-srcconfigpy-srcgui">6. 設定 GUI 仕様</a></li>
+      <li><a href="#7-ポータブルパッケージ配布--テスト方針">7. 配布・テスト</a></li>
+    </ul>
+  </nav>
+
+  <!-- Docsify Root Container -->
+  <div id="app">ドキュメントを読み込み中...</div>
+
+  <!-- Back to Top Button -->
+  <button id="back-to-top" class="back-to-top" type="button" aria-label="ページの先頭へ戻る">Top ↑</button>
+
+  <!-- Mermaid.js Core -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+  <!-- Global Target Finding Helper for Navigation & TOC -->
+  <script>
+    window.findTargetHeading = function(rawKey) {
+      if (!rawKey) return null;
+      var decodedKey = decodeURIComponent(rawKey).trim();
+      var strippedKey = decodedKey.replace(/^[_#]+/, '').trim();
+
+      // Stage 1: Exact ID / Attribute Match
+      var exactSelectors = [
+        '#' + CSS.escape(decodedKey),
+        '#' + CSS.escape(strippedKey),
+        '#_' + CSS.escape(strippedKey),
+        '[id="' + CSS.escape(decodedKey) + '"]',
+        '[id="' + CSS.escape(strippedKey) + '"]',
+        '[id="_' + CSS.escape(strippedKey) + '"]',
+        '[data-gfm-id="' + CSS.escape(decodedKey) + '"]',
+        '[data-gfm-id="' + CSS.escape(strippedKey) + '"]',
+        '[data-id="' + CSS.escape(decodedKey) + '"]',
+        '[data-id="' + CSS.escape(strippedKey) + '"]',
+        'a[name="' + CSS.escape(decodedKey) + '"]',
+        'a[name="' + CSS.escape(strippedKey) + '"]'
+      ];
+
+      for (var i = 0; i < exactSelectors.length; i++) {
+        try {
+          var el = document.querySelector(exactSelectors[i]);
+          if (el) {
+            return el.tagName && el.tagName.match(/^H[1-6]$/i) ? el : (el.closest('h1, h2, h3, h4, h5, h6') || el);
+          }
+        } catch (e) {}
+      }
+
+      var headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+
+      // Stage 2: Section Number Match (e.g. "412-..." -> "4.1.2", "4210-..." -> "4.2.10", "11-..." -> "1.1", "3-..." -> "3")
+      var numMatch = strippedKey.match(/^(\d+(?:\.\d+)*|\d+)/);
+      if (numMatch) {
+        var keyNum = numMatch[1]; // e.g. "412", "4210", "11", "3", "4.1.2"
+        
+        for (var j = 0; j < headings.length; j++) {
+          var h = headings[j];
+          var hSecAttr = h.getAttribute('data-section');
+          var hText = (h.textContent || '').trim();
+          var hSecMatch = hSecAttr ? [null, hSecAttr] : hText.match(/^(\d+(?:\.\d+)*)/);
+          
+          if (hSecMatch) {
+            var hSec = hSecMatch[1]; // e.g. "4.1.2", "4.2.10", "1.1", "3", "5"
+            var hSecNoDots = hSec.replace(/\./g, ''); // "412", "4210", "11", "3", "5"
+            
+            if (keyNum === hSec || keyNum === hSecNoDots) {
+              return h;
+            }
+          }
+        }
+      }
+
+      // Stage 3: Normalized Fuzzy Text Match
+      var cleanKey = strippedKey.replace(/[^0-9a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, '').toLowerCase();
+      if (cleanKey.length > 0) {
+        var bestMatch = null;
+        var bestScore = 0;
+
+        for (var k = 0; k < headings.length; k++) {
+          var hd = headings[k];
+          var hdText = (hd.getAttribute('data-heading-text') || hd.textContent || '').trim();
+          var cleanH = hdText.replace(/[^0-9a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, '').toLowerCase();
+
+          if (cleanH === cleanKey) {
+            return hd;
+          }
+          if (cleanH.startsWith(cleanKey) || cleanKey.startsWith(cleanH)) {
+            return hd;
+          }
+          if (cleanH.includes(cleanKey) || cleanKey.includes(cleanH)) {
+            var score = Math.min(cleanH.length, cleanKey.length);
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = hd;
+            }
+          }
+        }
+        if (bestMatch) return bestMatch;
+      }
+
+      return null;
+    };
+
+    window.scrollToTargetHeading = function(targetEl) {
+      if (!targetEl) return;
+      var scrollTarget = targetEl.tagName && targetEl.tagName.match(/^H[1-6]$/i)
+        ? targetEl
+        : (targetEl.closest('h1, h2, h3, h4, h5, h6') || targetEl);
+      
+      scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      scrollTarget.classList.remove('heading-target-active');
+      void scrollTarget.offsetWidth; // Trigger reflow for animation restart
+      scrollTarget.classList.add('heading-target-active');
+    };
+  </script>
+
+  <!-- Docsify Configuration -->
+  <script>
+    // Initialize Mermaid
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+      sequence: { useMaxWidth: true, showSequenceNumbers: true }
+    });
+
+    var mermaidCounter = 0;
+
+    // Docsify Setup
+    window.$docsify = Object.assign({
+      "name": "Sakai-Tasks-MCP アーキテクチャ設計書",
+      "repo": "",
+      "homepage": "architecture.md",
+      "loadSidebar": false,
+      "subMaxLevel": 3,
+      "maxLevel": 4,
+      "auto2top": true,
+      "notFoundPage": false,
+      "themeColor": "#2563eb",
+      "search": {
+            "maxAge": 86400000,
+            "paths": "auto",
+            "placeholder": "ドキュメント内を検索...",
+            "noData": "一致する結果が見つかりません",
+            "depth": 4,
+            "hideOtherSidebarContent": false
+      },
+      "copyCode": {
+            "buttonText": "コピー",
+            "errorText": "エラー",
+            "successText": "コピー完了"
+      }
+}, {
+      // Markdown Custom Renderer
+      markdown: {
+        renderer: {
+          // Mermaid code fence support
+          code: function(code, lang) {
+            if (lang === 'mermaid') {
+              return '<div class="mermaid" id="mermaid-' + (++mermaidCounter) + '">' + code + '</div>';
+            }
+            return this.origin.code.apply(this, arguments);
+          },
+          // Heading Anchor generator for TOC navigation & Smooth Scroll
+          heading: function(text, level) {
+            var defaultHtml = this.origin.heading.apply(this, arguments);
+            var rawText = text.replace(/<[^>]+>/g, '').trim();
+            var clean = rawText.toLowerCase();
+
+            var candidates = new Set();
+            candidates.add(clean);
+
+            // GFM standard and punctuation variations
+            var gfm1 = clean.replace(/[^0-9a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, '').trim().replace(/\s+/g, '-');
+            if (gfm1) candidates.add(gfm1);
+
+            var gfm2 = clean.replace(/[^0-9a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+            if (gfm2) candidates.add(gfm2);
+
+            var gfm3 = clean.replace(/\./g, '').replace(/[^0-9a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, '').trim().replace(/\s+/g, '-');
+            if (gfm3) candidates.add(gfm3);
+
+            var gfm4 = clean.replace(/\./g, '').replace(/&/g, '-').replace(/[^0-9a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, '').trim().replace(/\s+/g, '-');
+            if (gfm4) candidates.add(gfm4);
+            var gfm4_with_dot = clean.replace(/&/g, '-').replace(/[^0-9a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, '').trim().replace(/\s+/g, '-');
+            if (gfm4_with_dot) candidates.add(gfm4_with_dot);
+
+            // Section number extraction
+            var secMatch = rawText.match(/^(\d+(?:\.\d+)*)/);
+            if (secMatch) {
+              var secNum = secMatch[1];
+              candidates.add(secNum);
+              candidates.add(secNum.replace(/\./g, ''));
+              candidates.add(secNum.replace(/\./g, '-'));
+              candidates.add('sec-' + secNum.replace(/\./g, '-'));
+              candidates.add('section-' + secNum.replace(/\./g, '-'));
+            }
+
+            // Docsify underscore-prefixed slugs
+            var baseList = Array.from(candidates);
+            for (var i = 0; i < baseList.length; i++) {
+              if (baseList[i]) {
+                candidates.add('_' + baseList[i]);
+              }
+            }
+
+            var validCandidates = Array.from(candidates).filter(Boolean);
+            var anchorTags = validCandidates.map(function(s) {
+              return '<span id="' + s + '" class="heading-anchor-target" data-gfm-id="' + s + '"></span>';
+            }).join('');
+
+            return defaultHtml.replace(
+              new RegExp('^(<h' + level + ')', 'i'),
+              '$1 data-heading-text="' + rawText.replace(/"/g, '&quot;') + '"' + (secMatch ? ' data-section="' + secMatch[1] + '"' : '')
+            ).replace(
+              new RegExp('^(<h' + level + '[^>]*>)', 'i'),
+              '$1' + anchorTags
+            );
+          }
+        }
+      },
+
+      // Docsify Plugins
+      plugins: [
+        // 1. Mermaid Renderer & GitHub Alerts Transformer & Hash Scroll Observer
+        function(hook, vm) {
+          hook.afterEach(function(html, next) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+
+            // GitHub Alerts Transformer (Clean & Iconless)
+            var blockquotes = tempDiv.querySelectorAll('blockquote');
+            blockquotes.forEach(function(bq) {
+              var firstP = bq.querySelector('p');
+              if (!firstP) return;
+
+              var text = firstP.innerHTML;
+              var alertMatch = text.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(?:<br\s*\/?>)?/i);
+
+              if (alertMatch) {
+                var alertType = alertMatch[1].toLowerCase();
+                var alertTitle = alertMatch[1].toUpperCase();
+
+                firstP.innerHTML = text.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(?:<br\s*\/?>)?/i, '');
+
+                var alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-' + alertType;
+                alertDiv.innerHTML = '<div class="alert-title">' + alertTitle + '</div><div class="alert-body">' + bq.innerHTML + '</div>';
+
+                bq.parentNode.replaceChild(alertDiv, bq);
+              }
+            });
+
+            next(tempDiv.innerHTML);
+          });
+
+          hook.doneEach(function() {
+            // Render Mermaid diagrams
+            try {
+              if (window.mermaid) {
+                window.mermaid.run({
+                  querySelector: '.mermaid'
+                }).catch(function(err) {
+                  console.warn('Mermaid render warning:', err);
+                });
+              }
+            } catch (e) {
+              console.error('Mermaid render exception:', e);
+            }
+
+            // Handle initial hash scrolling on page load
+            var hash = window.location.hash;
+            if (hash && hash !== '#/' && hash !== '#') {
+              var idMatch = hash.match(/[?&]id=([^&]+)/);
+              var targetKey = idMatch ? decodeURIComponent(idMatch[1]) : decodeURIComponent(hash.replace(/^#\/?/, ''));
+              if (targetKey && targetKey !== '/') {
+                setTimeout(function() {
+                  if (typeof window.findTargetHeading === 'function') {
+                    var el = window.findTargetHeading(targetKey);
+                    if (el) {
+                      window.scrollToTargetHeading(el);
+                    }
+                  }
+                }, 200);
+              }
+            }
+          });
+        }
+      ]
+    });
+  </script>
+
+  <!-- Docsify Core & Official Plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
+
+  <!-- Prism.js Syntax Highlighters -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-python.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-batch.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-markdown.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-typescript.min.js"></script>
+
+  <!-- Smooth Anchor Jump & Scroll Event Listeners -->
+  <script>
+    (function() {
+      // Intercept anchor clicks (Capture Phase)
+      document.addEventListener('click', function(e) {
+        var link = e.target.closest('a');
+        if (!link) return;
+
+        var href = link.getAttribute('href');
+        if (!href) return;
+
+        // 1. Top Link
+        if (href === '#' || href === '#/') {
+          e.preventDefault();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          if (history.pushState) history.pushState(null, '', '#/');
+          return;
+        }
+
+        // 2. Hash / Anchor Link
+        if (href.startsWith('#')) {
+          var targetKey = '';
+          var idMatch = href.match(/[?&]id=([^&]+)/);
+          if (idMatch) {
+            targetKey = decodeURIComponent(idMatch[1]);
+          } else {
+            targetKey = decodeURIComponent(href.replace(/^#\/?/, ''));
+          }
+
+          if (!targetKey || targetKey === '/') return;
+
+          var targetEl = window.findTargetHeading(targetKey);
+          if (targetEl) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.scrollToTargetHeading(targetEl);
+
+            if (history.pushState) {
+              var cleanHash = href.startsWith('#/?id=') ? href : '#/?id=' + encodeURIComponent(targetKey);
+              history.pushState(null, '', cleanHash);
+            }
+          }
+        }
+      }, true);
+
+      // Handle Hash Changes from browser history back/forward
+      window.addEventListener('hashchange', function() {
+        var hash = window.location.hash;
+        if (!hash || hash === '#/' || hash === '#') return;
+        var idMatch = hash.match(/[?&]id=([^&]+)/);
+        var targetKey = idMatch ? decodeURIComponent(idMatch[1]) : decodeURIComponent(hash.replace(/^#\/?/, ''));
+        if (!targetKey || targetKey === '/') return;
+        var targetEl = window.findTargetHeading(targetKey);
+        if (targetEl) {
+          window.scrollToTargetHeading(targetEl);
+        }
+      });
+
+      // Back to Top button listener
+      document.addEventListener('DOMContentLoaded', function() {
+        var backToTopBtn = document.getElementById('back-to-top');
+        if (backToTopBtn) {
+          window.addEventListener('scroll', function() {
+            if (window.scrollY > 300) {
+              backToTopBtn.classList.add('visible');
+            } else {
+              backToTopBtn.classList.remove('visible');
+            }
+          });
+
+          backToTopBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
