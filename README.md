@@ -43,17 +43,35 @@ AI が呼び出せる MCP ツール一覧です。
 ### セットアップ手順
 
 1. ダウンロードした ZIP ファイルを任意のフォルダ（例: `C:\tools` など）に解凍します。
-2. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の `run.bat` のパスを登録します。
-   - 実行ファイルのパス例: `C:\tools\sakai-tasks-mcp-windows\run.bat`
+2. 解凍先フォルダ内の `run.bat` の絶対パスを確認します。
+   - **パスの確認方法:** エクスプローラーで解凍先フォルダを開き、`run.bat` を **右クリック** して「**パスのコピー**」を選択すると、クリップボードに絶対パスがコピーされます。
+3. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に登録します。
+   - **設定 JSON の例:**
+     ```json
+     {
+       "mcpServers": {
+         "sakai-tasks": {
+           "command": "cmd.exe",
+           "args": [
+             "/c",
+             "<あなたが解凍したrun.batファイルのパス>"
+           ]
+         }
+       }
+     }
+     ```
+     ※ パス内のバックスラッシュ（`\`）は、JSON 内では `\\` のように重ねてエスケープしてください（例: `C:\\tools\\sakai-tasks-mcp-windows\\run.bat`）。
    - **AI に設定ファイルへの追記を依頼する場合のプロンプト例:**
      ```text
      あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
      名前: sakai-tasks
-     コマンド: C:\tools\sakai-tasks-mcp-windows\run.bat
+     コマンド: cmd.exe
+     引数: ["/c", "<あなたが解凍したrun.batファイルのパス>"]
      ```
-3. AI アプリを再起動します。
-4. AI のチャット欄で「**初期設定を開いて**」と指示します。
-5. 設定画面が開いたら、所属大学のドメイン（例: `tact.ac.thers.ac.jp` や `panda.ecs.kyoto-u.ac.jp` 等）を登録し、「保存して閉じる」を押します。
+4. AI アプリを再起動します。
+5. AI のチャット欄で「**初期設定を開いて**」と指示します。
+6. 設定画面が開いたら、所属大学のドメイン（例: `tact.ac.thers.ac.jp` や `panda.ecs.kyoto-u.ac.jp` 等）を登録し、「保存して閉じる」を押します。
+7. 設定画面が閉じて少しあとにログイン画面が開くので、そこでログインを完了させてください。
 
 ---
 
@@ -64,17 +82,30 @@ AI が呼び出せる MCP ツール一覧です。
 ### セットアップ手順
 
 1. ダウンロードしたアーカイブ（`.tar.gz`）を任意のフォルダ（例: `/Users/username/tools` や `~/tools` など）に展開（解凍）します。
-2. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の `run.sh` のパスを登録します。
-   - 実行ファイルのパス例: `/Users/username/tools/sakai-tasks-mcp-macos/run.sh`
+2. 解凍先フォルダ内の `run.sh` の絶対パスを確認します。
+   - **パスの確認方法:** Finder で解凍先フォルダを開き、`run.sh` を **右クリック** して「**パス名をコピー**」を選択します。
+3. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に登録します。
+   - **設定 JSON の例:**
+     ```json
+     {
+       "mcpServers": {
+         "sakai-tasks": {
+           "command": "<あなたが解凍したrun.shファイルのパス>",
+           "args": []
+         }
+       }
+     }
+     ```
    - **AI に設定ファイルへの追記を依頼する場合のプロンプト例:**
      ```text
      あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
      名前: sakai-tasks
-     コマンド: /Users/username/tools/sakai-tasks-mcp-macos/run.sh
+     コマンド: <あなたが解凍したrun.shファイルのパス>
      ```
-3. AI アプリを再起動します。
-4. AI のチャット欄で「**初期設定を開いて**」と指示します。
-5. 設定画面が開いたら、所属大学のドメイン（例: `tact.ac.thers.ac.jp` や `panda.ecs.kyoto-u.ac.jp` 等）を登録し、「保存して閉じる」を押します。
+4. AI アプリを再起動します。
+5. AI のチャット欄で「**初期設定を開いて**」と指示します。
+6. 設定画面が開いたら、所属大学のドメイン（例: `tact.ac.thers.ac.jp` や `panda.ecs.kyoto-u.ac.jp` 等）を登録し、「保存して閉じる」を押します。
+7. 設定画面が閉じて少しあとにログイン画面が開くので、そこでログインを完了させてください。
 
 ---
 

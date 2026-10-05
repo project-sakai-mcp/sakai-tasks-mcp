@@ -63,6 +63,19 @@ def configure_pth(python_embed_dir: Path) -> None:
     site_packages = python_embed_dir / "Lib" / "site-packages"
     site_packages.mkdir(parents=True, exist_ok=True)
 
+    # .NET CAS ポリシー (Mark of the Web / 0x80131515) 回避設定
+    config_file = python_embed_dir / "python.exe.config"
+    print(f"[build_windows] Creating {config_file}")
+    config_content = (
+        '<?xml version="1.0" encoding="utf-8" ?>\n'
+        '<configuration>\n'
+        '  <runtime>\n'
+        '    <loadFromRemoteSources enabled="true"/>\n'
+        '  </runtime>\n'
+        '</configuration>\n'
+    )
+    config_file.write_text(config_content, encoding="utf-8")
+
 
 def install_dependencies(python_embed_dir: Path, requirements_file: Path) -> None:
     """依存ライブラリを python-embed/Lib/site-packages にインストールする。"""

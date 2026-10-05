@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+from pathlib import Path
 import sys
 import time
 
@@ -141,6 +143,21 @@ async def get_valid_cookies(
         #    → WebViewログインを別プロセスで実行
         # --------------------------------------------------
 
+        server_script = Path(__file__).resolve().parent.parent / "server.py"
+        project_root = server_script.parent.parent
+
+        env = os.environ.copy()
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = (
+            f"{project_root}{os.pathsep}{existing_pythonpath}"
+            if existing_pythonpath
+            else str(project_root)
+        )
+        embed_dll = project_root / "python-embed" / "python312.dll"
+        if embed_dll.exists():
+            env["PYTHONNET_PYDLL"] = str(embed_dll)
+            env["PYTHONHOME"] = str(embed_dll.parent)
+
         if getattr(sys, "frozen", False):
             # PyInstaller等で単一バイナリ化されている場合
             cmd = [
@@ -149,12 +166,11 @@ async def get_valid_cookies(
                 "--host",
                 host,
             ]
-
         else:
             # Pythonスクリプトとして実行している場合
             cmd = [
                 sys.executable,
-                sys.argv[0],
+                str(server_script),
                 "--login",
                 "--host",
                 host,
@@ -163,6 +179,8 @@ async def get_valid_cookies(
         logger.info("Starting WebView login subprocess: %s", " ".join(cmd))
         proc = await asyncio.create_subprocess_exec(
             *cmd,
+            cwd=str(project_root),
+            env=env,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

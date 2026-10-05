@@ -26,6 +26,19 @@
   </div>
 
   <script>
+    var closing = false;
+
+    function setClosing(value) {
+      closing = value;
+      document.getElementById('submit-btn').disabled = value;
+      document.getElementById('cancel-btn').disabled = value;
+    }
+
+    function handleCloseError() {
+      setClosing(false);
+      alert('処理に失敗しました。もう一度お試しください。');
+    }
+
     function init() {
       if (window.pywebview && window.pywebview.api) {
         loadPresets();
@@ -60,19 +73,23 @@
     }
 
     document.getElementById('submit-btn').addEventListener('click', function() {
+      if (closing) return;
       var host = document.getElementById('host-input').value.trim();
       if (!host) {
         alert('Sakai ドメインを入力してください。');
         return;
       }
       if (window.pywebview && window.pywebview.api) {
-        window.pywebview.api.select_host(host);
+        setClosing(true);
+        window.pywebview.api.select_host(host).catch(handleCloseError);
       }
     });
 
     document.getElementById('cancel-btn').addEventListener('click', function() {
+      if (closing) return;
       if (window.pywebview && window.pywebview.api) {
-        window.pywebview.api.close_window();
+        setClosing(true);
+        window.pywebview.api.close_window().catch(handleCloseError);
       }
     });
 
