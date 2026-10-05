@@ -51,12 +51,8 @@ def show_settings_window() -> None:
     )
     api.set_window(window)
 
-    def _destroy_watcher(win: webview.Window) -> None:
-        api.close_event.wait()
-        win.destroy()
-
     # webview.start はメインスレッドで起動 (OS 制約遵守)
-    webview.start(_destroy_watcher, window, storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False)
+    webview.start(storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False)
 
 
 def show_initial_setup_window() -> str | None:
@@ -77,11 +73,7 @@ def show_initial_setup_window() -> str | None:
     )
     api.set_window(window)
 
-    def _destroy_watcher(win: webview.Window) -> None:
-        api.close_event.wait()
-        win.destroy()
-
-    webview.start(_destroy_watcher, window, storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False)
+    webview.start(storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False)
 
     if api.selected_host:
         config.sakai_host = api.selected_host
