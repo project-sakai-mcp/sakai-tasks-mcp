@@ -1,5 +1,4 @@
-"""JS communication bridge module for pywebview."""
-
+import threading
 from typing import Any
 import webview
 from src.config import AIPolicyMode, AppConfigData, Config
@@ -22,6 +21,7 @@ class SettingsApi:
     def __init__(self, initial_data: SettingsUIData):
         self._initial_data = initial_data
         self._window: webview.Window | None = None
+        self.close_event = threading.Event()
 
     def set_window(self, window: webview.Window) -> None:
         """バインドされた Window インスタンスを保持する"""
@@ -32,8 +32,7 @@ class SettingsApi:
         return self._initial_data.model_dump()
 
     def save_settings(self, data: dict[str, Any]) -> bool:
-        """ユーザーが「保存」をクリックした際に呼ばれ、config.json を更新してウィンドウを閉じる"""
-        # JS から渡された courses 配列を policies 辞書 (site_id -> AIPolicyMode) にマッピング変換
+        """ユーザーが「保存」をクリックした際に呼ばれ、config.json を更新してウィンドウ終了を通知"""
         policies = {}
         for c in data.get("courses", []):
             if "id" in c and "current_policy" in c:
@@ -51,17 +50,15 @@ class SettingsApi:
             cache_ttl=float(data.get("cache_ttl") or Config.CACHE_TTL),
         )
         Config.save(app_config)
-        if self._window:
-            self._window.destroy()
+        self.close_event.set()
         return True
 
     def close_window(self) -> None:
-        """ウィンドウを閉じる (キャンセル用)"""
-        if self._window:
-            self._window.destroy()
+        """ウィンドウ終了イベントを発火 (キャンセル用)"""
+        self.close_event.set()
 
     def cancel(self) -> None:
-        """ウィンドウを閉じる (キャンセル用エイリアス)"""
+        """ウィンドウ終了イベントを発火 (キャンセル用エイリアス)"""
         self.close_window()
 
 
@@ -73,6 +70,7 @@ class InitialSetupApi:
         self._current_host = current_host
         self.selected_host: str | None = None
         self._window: webview.Window | None = None
+        self.close_event = threading.Event()
 
     def set_window(self, window: webview.Window) -> None:
         """バインドされた Window インスタンスを保持する"""
@@ -86,17 +84,15 @@ class InitialSetupApi:
         }
 
     def select_host(self, host: str) -> bool:
-        """大学ドメインを選択・入力して保存"""
+        """大学ドメインを選択・入力して保存し、終了イベントを発火"""
         self.selected_host = _sanitize_host(host)
-        if self._window:
-            self._window.destroy()
+        self.close_event.set()
         return True
 
     def close_window(self) -> None:
-        """ウィンドウを閉じる (キャンセル用)"""
-        if self._window:
-            self._window.destroy()
+        """ウィンドウ終了イベントを発火 (キャンセル用)"""
+        self.close_event.set()
 
     def cancel(self) -> None:
-        """ウィンドウを閉じる (キャンセル用エイリアス)"""
+        """ウィンドウ終了イベントを発火 (キャンセル用エイリアス)"""
         self.close_window()
