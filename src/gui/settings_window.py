@@ -10,6 +10,18 @@ from src.gui.api import InitialSetupApi, SettingsApi
 from src.gui.data_builder import build_settings_ui_data
 
 
+def _destroy_watcher(win: webview.Window, api: InitialSetupApi | SettingsApi) -> None:
+    api.close_event.wait()
+    request_thread = api._close_request_thread
+    if request_thread is None:
+        # タイトルバーから閉じた場合は、すでにウィンドウが終了している。
+        return
+    # API メソッド復帰後の JS 返答も完了させてから GUI ループを止める。
+    request_thread.join()
+    if not win.events.closed.is_set():
+        win.destroy()
+
+
 def show_settings_window() -> None:
     """
     ユーザー詳細設定画面 (WebView GUI) を起動する。
@@ -52,7 +64,10 @@ def show_settings_window() -> None:
     api.set_window(window)
 
     # webview.start はメインスレッドで起動 (OS 制約遵守)
-    webview.start(storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False)
+    webview.start(
+        _destroy_watcher, (window, api),
+        storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False,
+    )
 
 
 def show_initial_setup_window() -> str | None:
@@ -73,7 +88,10 @@ def show_initial_setup_window() -> str | None:
     )
     api.set_window(window)
 
-    webview.start(storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False)
+    webview.start(
+        _destroy_watcher, (window, api),
+        storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False,
+    )
 
     if api.selected_host:
         config.sakai_host = api.selected_host
