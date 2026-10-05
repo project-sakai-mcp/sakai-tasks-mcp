@@ -1,6 +1,7 @@
 """FastMCP server implementation for Sakai Tasks MCP."""
 
 import argparse
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -328,13 +329,33 @@ def open_settings() -> str:
     設定画面では（Sakai 接続ホスト名、講義別 AI 利用ポリシー等）を設定できます。
     接続先ホスト名(ドメイン)が未設定の場合、接続祭ホスト名のみを設定できる初期設定ウィンドウが起動します。
     """
+    # 自身のスクリプト絶対パスとプロジェクトルートを取得
+    server_script = Path(__file__).resolve()
+    project_root = server_script.parent.parent
+
+    # 子プロセスへ渡す環境変数を設定
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{project_root}{os.pathsep}{existing_pythonpath}"
+        if existing_pythonpath
+        else str(project_root)
+    )
+    # Windows かつ Embeddable Python の場合のフォールバック
+    embed_dll = project_root / "python-embed" / "python312.dll"
+    if embed_dll.exists():
+        env["PYTHONNET_PYDLL"] = str(embed_dll)
+        env["PYTHONHOME"] = str(embed_dll.parent)
+
     if getattr(sys, "frozen", False):
         cmd = [sys.executable, "--settings"]
     else:
-        cmd = [sys.executable, sys.argv[0], "--settings"]
+        cmd = [sys.executable, str(server_script), "--settings"]
 
     subprocess.Popen(
         cmd,
+        cwd=str(project_root),
+        env=env,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
