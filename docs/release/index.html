@@ -358,20 +358,41 @@
       <h3 style="font-size: 1.15rem; margin-top: 28px; margin-bottom: 12px; color: var(--text-main);">セットアップ手順</h3>
       <ol>
         <li>ダウンロードした ZIP ファイルを任意のフォルダ（例: <code>C:\tools</code> など）に解凍します。</li>
-        <li>お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の <code>run.bat</code> のパスを登録します。
-          <p style="margin-top: 8px; font-size: 0.95rem; color: #475569;">
-            実行ファイルのパス例: <code>C:\tools\sakai-tasks-mcp-windows\run.bat</code>
+        <li>解凍先フォルダ内の <code>run.bat</code> の絶対パスを確認します。
+          <p style="margin-top: 6px; font-size: 0.93rem; color: #475569;">
+            💡 <strong>パスの確認方法:</strong> エクスプローラーで解凍先フォルダを開き、<code>run.bat</code> を <strong>右クリック</strong> して「<strong>パスのコピー</strong>」を選択すると、クリップボードに絶対パスがコピーされます。
           </p>
-          <div style="margin-top: 10px; background-color: #f8fafc; padding: 12px 14px;">
+        </li>
+        <li>お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に登録します。
+          <div style="margin-top: 10px; background-color: #f8fafc; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px;">
+            <p style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">設定 JSON の例:</p>
+            <pre style="margin-top: 6px;"><code>{
+  "mcpServers": {
+    "sakai-tasks": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "&lt;あなたが解凍したrun.batファイルのパス&gt;"
+      ]
+    }
+  }
+}</code></pre>
+            <p style="margin-top: 6px; font-size: 0.85rem; color: #64748b;">
+              ※ JSON 内ではパスのバックスラッシュ（<code>\</code>）を <code>\\</code> にエスケープしてください（例: <code>C:\\tools\\sakai-tasks-mcp-windows\\run.bat</code>）。
+            </p>
+          </div>
+          <div style="margin-top: 12px; background-color: #f8fafc; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px;">
             <p style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">AI に設定ファイルへの追記を依頼する場合のプロンプト例:</p>
             <pre style="margin-top: 6px;"><code>あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
 名前: sakai-tasks
-コマンド: C:\tools\sakai-tasks-mcp-windows\run.bat</code></pre>
+コマンド: cmd.exe
+引数: ["/c", "&lt;あなたが解凍したrun.batファイルのパス&gt;"]</code></pre>
           </div>
         </li>
         <li>AI アプリを再起動します。</li>
         <li>AI のチャット欄で「<strong>初期設定を開いて</strong>」と指示します。</li>
         <li>設定画面が開いたら、所属大学のドメイン（例: <code>tact.ac.thers.ac.jp</code> や <code>panda.ecs.kyoto-u.ac.jp</code> 等）を登録し、「保存して閉じる」を押します。</li>
+        <li>設定画面が閉じて少しあとにログイン画面が開くので、そこでログインを完了させてください。</li>
       </ol>
     </section>
 
@@ -390,20 +411,34 @@
       <h3 style="font-size: 1.15rem; margin-top: 28px; margin-bottom: 12px; color: var(--text-main);">セットアップ手順</h3>
       <ol>
         <li>ダウンロードしたアーカイブ（<code>.tar.gz</code>）を任意のフォルダ（例: <code>/Users/username/tools</code> や <code>~/tools</code> など）に展開（解凍）します。</li>
-        <li>お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に、解凍先フォルダ内の <code>run.sh</code> のパスを登録します。
-          <p style="margin-top: 8px; font-size: 0.95rem; color: #475569;">
-            実行ファイルのパス例: <code>/Users/username/tools/sakai-tasks-mcp-macos/run.sh</code>
+        <li>解凍先フォルダ内の <code>run.sh</code> の絶対パスを確認します。
+          <p style="margin-top: 6px; font-size: 0.93rem; color: #475569;">
+            💡 <strong>パスの確認方法:</strong> Finder で解凍先フォルダを開き、<code>run.sh</code> を <strong>右クリック</strong> して「<strong>パス名をコピー</strong>」を選択します。
           </p>
-          <div style="margin-top: 10px; background-color: #f8fafc; padding: 12px 14px;">
+        </li>
+        <li>お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に登録します。
+          <div style="margin-top: 10px; background-color: #f8fafc; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px;">
+            <p style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">設定 JSON の例:</p>
+            <pre style="margin-top: 6px;"><code>{
+  "mcpServers": {
+    "sakai-tasks": {
+      "command": "&lt;あなたが解凍したrun.shファイルのパス&gt;",
+      "args": []
+    }
+  }
+}</code></pre>
+          </div>
+          <div style="margin-top: 12px; background-color: #f8fafc; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px;">
             <p style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">AI に設定ファイルへの追記を依頼する場合のプロンプト例:</p>
             <pre style="margin-top: 6px;"><code>あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
 名前: sakai-tasks
-コマンド: /Users/username/tools/sakai-tasks-mcp-macos/run.sh</code></pre>
+コマンド: &lt;あなたが解凍したrun.shファイルのパス&gt;</code></pre>
           </div>
         </li>
         <li>AI アプリを再起動します。</li>
         <li>AI のチャット欄で「<strong>初期設定を開いて</strong>」と指示します。</li>
         <li>設定画面が開いたら、所属大学のドメイン（例: <code>tact.ac.thers.ac.jp</code> や <code>panda.ecs.kyoto-u.ac.jp</code> 等）を登録し、「保存して閉じる」を押します。</li>
+        <li>設定画面が閉じて少しあとにログイン画面が開くので、そこでログインを完了させてください。</li>
       </ol>
     </section>
 
