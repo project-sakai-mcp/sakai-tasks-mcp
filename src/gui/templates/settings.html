@@ -3,6 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <title>Sakai Tasks MCP 設定</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 16px;
+      color: #333;
+    }
+    fieldset {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    legend {
+      font-weight: bold;
+      padding: 0 4px;
+    }
+    .status-container {
+      margin-top: 15px;
+      padding: 10px 14px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-indicator {
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .status-saved { color: #15803d; }
+    .status-saving { color: #d97706; }
+    .status-error { color: #b91c1c; }
+    .notice-text {
+      font-size: 13px;
+      color: #64748b;
+    }
+    .empty-courses-notice {
+      padding: 24px;
+      text-align: center;
+      background-color: #f1f5f9;
+      color: #475569;
+      border-radius: 6px;
+      margin-top: 8px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+  </style>
 </head>
 <body>
   <h2>⚙️ Sakai Tasks MCP 設定</h2>
@@ -19,7 +67,7 @@
   <!-- 2. 権限詳細説明 (アコーディオン / details) -->
   <details style="margin-top: 10px;">
     <summary>📖 各利用権限の説明を表示</summary>
-    <div style="padding: 8px; border: 1px solid #ccc; margin-top: 5px;">
+    <div style="padding: 8px; border: 1px solid #ccc; margin-top: 5px; border-radius: 4px;">
       <ul>
         <li><strong>全て</strong>: 課題指示文・カレンダー締切・講義資料ファイルのダウンロードすべてを AI に許可します。</li>
         <li><strong>強</strong>: 課題指示文・締切の対話は許可しますが、講義資料ファイルのダウンロードを禁止します。</li>
@@ -29,43 +77,48 @@
     </div>
   </details>
 
-  <!-- 3 & 4. 講義絞り込み検索 -->
+  <!-- 3 & 4. 講義別ポリシー設定 -->
   <fieldset style="margin-top: 10px;">
     <legend>🛡️ 講義別 AI 利用ポリシー設定</legend>
-    <div style="margin-bottom: 10px;">
-      <label for="search-box">🔍 講義名で絞り込み:</label>
-      <input type="text" id="search-box" style="width: 250px;" placeholder="講義名を入力...">
-    </div>
+    <div id="courses-container">
+      <div style="margin-bottom: 10px;" id="search-container">
+        <label for="search-box">🔍 講義名で絞り込み:</label>
+        <input type="text" id="search-box" style="width: 250px;" placeholder="講義名を入力...">
+      </div>
 
-    <!-- 5. 講義別ポリシー設定表 -->
-    <table border="1" id="courses-table" style="width: 100%; border-collapse: collapse;">
-      <thead>
-        <tr>
-          <th rowspan="2" style="vertical-align: middle;">講義名</th>
-          <th style="width: 80px; text-align: center;">全て</th>
-          <th style="width: 80px; text-align: center;">強</th>
-          <th style="width: 80px; text-align: center;">弱</th>
-          <th style="width: 80px; text-align: center;">無効</th>
-        </tr>
-        <tr>
-          <th style="text-align: center; padding: 4px;">
-            <input type="radio" name="batch_policy" id="btn-all-allow" title="すべて『全て』に設定" style="cursor: pointer;">
-          </th>
-          <th style="text-align: center; padding: 4px;">
-            <input type="radio" name="batch_policy" id="btn-all-text" title="すべて『強』に設定" style="cursor: pointer;">
-          </th>
-          <th style="text-align: center; padding: 4px;">
-            <input type="radio" name="batch_policy" id="btn-all-schedule" title="すべて『弱』に設定" style="cursor: pointer;">
-          </th>
-          <th style="text-align: center; padding: 4px;">
-            <input type="radio" name="batch_policy" id="btn-all-blocked" title="すべて『無効』に設定" style="cursor: pointer;">
-          </th>
-        </tr>
-      </thead>
-      <tbody id="courses-tbody">
-        <!-- 動的描画 -->
-      </tbody>
-    </table>
+      <!-- 5. 講義別ポリシー設定表 -->
+      <table border="1" id="courses-table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th rowspan="2" style="vertical-align: middle;">講義名</th>
+            <th style="width: 80px; text-align: center;">全て</th>
+            <th style="width: 80px; text-align: center;">強</th>
+            <th style="width: 80px; text-align: center;">弱</th>
+            <th style="width: 80px; text-align: center;">無効</th>
+          </tr>
+          <tr>
+            <th style="text-align: center; padding: 4px;">
+              <input type="radio" name="batch_policy" id="btn-all-allow" title="すべて『全て』に設定" style="cursor: pointer;">
+            </th>
+            <th style="text-align: center; padding: 4px;">
+              <input type="radio" name="batch_policy" id="btn-all-text" title="すべて『強』に設定" style="cursor: pointer;">
+            </th>
+            <th style="text-align: center; padding: 4px;">
+              <input type="radio" name="batch_policy" id="btn-all-schedule" title="すべて『弱』に設定" style="cursor: pointer;">
+            </th>
+            <th style="text-align: center; padding: 4px;">
+              <input type="radio" name="batch_policy" id="btn-all-blocked" title="すべて『無効』に設定" style="cursor: pointer;">
+            </th>
+          </tr>
+        </thead>
+        <tbody id="courses-tbody">
+          <!-- 動的描画 -->
+        </tbody>
+      </table>
+      <div id="empty-courses-notice" class="empty-courses-notice" style="display: none;">
+        ※ Sakai 接続先ドメインを設定・保存後、設定画面を再度開くと講義一覧が表示されます。
+      </div>
+    </div>
   </fieldset>
 
   <!-- 6. 詳細パラメータ設定行 -->
@@ -81,27 +134,85 @@
     </div>
   </fieldset>
 
-  <!-- 7. 保存・アクションフッター -->
-  <div style="margin-top: 15px; text-align: right;">
-    <button type="button" id="cancel-btn">キャンセル</button>
-    <button type="button" id="save-btn" style="margin-left: 10px;">💾 保存して閉じる</button>
+  <!-- 7. 自動保存ステータス & 案内フッター -->
+  <div class="status-container">
+    <div id="status-indicator" class="status-indicator status-saved">💾 自動保存済み</div>
+    <div class="notice-text">設定の変更は自動保存されます。完了したら右上の［✕］ボタンで閉じてください。</div>
   </div>
 
   <script>
-    var closing = false;
-
-    function setClosing(value) {
-      closing = value;
-      document.getElementById('save-btn').disabled = value;
-      document.getElementById('cancel-btn').disabled = value;
-    }
-
-    function handleCloseError() {
-      setClosing(false);
-      alert('処理に失敗しました。もう一度お試しください。');
-    }
-
     var globalCourses = [];
+    var saveTimer = null;
+
+    function setStatus(state, message) {
+      var el = document.getElementById('status-indicator');
+      el.className = 'status-indicator';
+      if (state === 'saving') {
+        el.classList.add('status-saving');
+        el.textContent = message || '⏳ 保存中...';
+      } else if (state === 'error') {
+        el.classList.add('status-error');
+        el.textContent = message || '⚠️ 保存に失敗しました';
+      } else {
+        el.classList.add('status-saved');
+        el.textContent = message || '💾 自動保存済み';
+      }
+    }
+
+    // 300ms デバウンス自動保存をスケジュール
+    function triggerAutoSave() {
+      setStatus('saving', '⏳ 入力を待機中...');
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+      }
+      saveTimer = setTimeout(function() {
+        performSave();
+      }, 300);
+    }
+
+    function performSave() {
+      var sakaiHost = document.getElementById('sakai-host').value.trim();
+      var deadlineDays = parseInt(document.getElementById('default-deadline-days').value, 10);
+      if (isNaN(deadlineDays) || deadlineDays <= 0) {
+        deadlineDays = 30;
+      }
+
+      var announcementLimit = parseInt(document.getElementById('default-announcement-limit').value, 10);
+      if (isNaN(announcementLimit) || announcementLimit <= 0) {
+        announcementLimit = 7;
+      }
+
+      var updatedCourses = [];
+      globalCourses.forEach(function(course) {
+        var selected = document.querySelector('input[name="policy_' + course.id + '"]:checked');
+        var policyVal = selected ? selected.value : course.current_policy;
+        updatedCourses.push({
+          id: course.id,
+          title: course.title,
+          is_favorite: course.is_favorite,
+          current_policy: policyVal
+        });
+      });
+
+      var payload = {
+        sakai_host: sakaiHost,
+        default_deadline_days: deadlineDays,
+        default_announcement_limit: announcementLimit,
+        courses: updatedCourses
+      };
+
+      if (window.pywebview && window.pywebview.api) {
+        setStatus('saving', '⏳ 保存中...');
+        window.pywebview.api.save_settings(payload)
+          .then(function() {
+            setStatus('saved', '💾 自動保存済み');
+          })
+          .catch(function(err) {
+            console.error('Save error:', err);
+            setStatus('error', '⚠️ 保存に失敗しました');
+          });
+      }
+    }
 
     function init() {
       if (window.pywebview && window.pywebview.api) {
@@ -133,20 +244,45 @@
         presetSelect.appendChild(opt);
       }
 
+      hostInput.addEventListener('input', triggerAutoSave);
+
       presetSelect.addEventListener('change', function() {
         if (presetSelect.value) {
           hostInput.value = presetSelect.value;
+          triggerAutoSave();
         }
       });
 
       // 6. 詳細パラメータ
-      document.getElementById('default-deadline-days').value = data.default_deadline_days;
-      document.getElementById('default-announcement-limit').value = data.default_announcement_limit;
+      var deadlineDaysInput = document.getElementById('default-deadline-days');
+      deadlineDaysInput.value = data.default_deadline_days;
+      deadlineDaysInput.addEventListener('input', triggerAutoSave);
+      deadlineDaysInput.addEventListener('change', triggerAutoSave);
+
+      var announcementLimitInput = document.getElementById('default-announcement-limit');
+      announcementLimitInput.value = data.default_announcement_limit;
+      announcementLimitInput.addEventListener('input', triggerAutoSave);
+      announcementLimitInput.addEventListener('change', triggerAutoSave);
 
       // 5. 講義一覧 (お気に入りとその他に分離)
-      globalCourses = data.courses;
+      globalCourses = data.courses || [];
       var tbody = document.getElementById('courses-tbody');
+      var coursesTable = document.getElementById('courses-table');
+      var searchContainer = document.getElementById('search-container');
+      var emptyNotice = document.getElementById('empty-courses-notice');
+
       tbody.innerHTML = '';
+
+      if (globalCourses.length === 0) {
+        coursesTable.style.display = 'none';
+        searchContainer.style.display = 'none';
+        emptyNotice.style.display = 'block';
+        return;
+      } else {
+        coursesTable.style.display = '';
+        searchContainer.style.display = '';
+        emptyNotice.style.display = 'none';
+      }
 
       var policies = ['allow_all', 'text_only', 'schedule_only', 'blocked'];
       var favCourses = globalCourses.filter(function(c) { return c.is_favorite; });
@@ -177,7 +313,10 @@
           if (course.current_policy === pol) {
             radio.checked = true;
           }
-          radio.addEventListener('change', updateBatchRadioState);
+          radio.addEventListener('change', function() {
+            updateBatchRadioState();
+            triggerAutoSave();
+          });
           tdRadio.appendChild(radio);
           tr.appendChild(tdRadio);
         });
@@ -243,6 +382,7 @@
         radio.checked = true;
       });
       updateBatchRadioState();
+      triggerAutoSave();
     }
 
     // 各講義の選択状態をもとに、全行一致していればヘッダーの丸ボタンをONにする
@@ -260,7 +400,9 @@
       policies.forEach(function(item) {
         var checkedCount = document.querySelectorAll('#courses-tbody input[type="radio"][value="' + item.value + '"]:checked').length;
         var headerRadio = document.getElementById(item.id);
-        headerRadio.checked = (checkedCount === totalRows);
+        if (headerRadio) {
+          headerRadio.checked = (checkedCount === totalRows);
+        }
       });
     }
 
@@ -293,63 +435,9 @@
           if (row.dataset.isFavorite === 'true') {
             row.style.display = '';
           } else {
-            row.style.display = (document.getElementById('other-courses-header-row') && !row.classList.contains('other-course-row')) ? '' : (row.style.display = (toggleRow && toggleRow.textContent.indexOf('折りたたむ') !== -1 ? '' : 'none'));
+            row.style.display = (document.getElementById('other-courses-header-row') && !row.classList.contains('other-course-row')) ? '' : (row.style.display = (toggleRow && toggleRow.textContent.indexOf('非表示') !== -1 ? '' : 'none'));
           }
         });
-      }
-    });
-
-    // 7. 保存とキャンセル
-    document.getElementById('save-btn').addEventListener('click', function() {
-      if (closing) return;
-      var sakaiHost = document.getElementById('sakai-host').value.trim();
-      if (!sakaiHost) {
-        alert('Sakai 接続先ドメインを入力してください。');
-        return;
-      }
-
-      var deadlineDays = parseInt(document.getElementById('default-deadline-days').value, 10);
-      if (isNaN(deadlineDays) || deadlineDays <= 0) {
-        alert('直近締切の取得対象日数を正しく入力してください。');
-        return;
-      }
-
-      var announcementLimit = parseInt(document.getElementById('default-announcement-limit').value, 10);
-      if (isNaN(announcementLimit) || announcementLimit <= 0) {
-        alert('お知らせ取得の最大件数を正しく入力してください。');
-        return;
-      }
-
-      var updatedCourses = [];
-      globalCourses.forEach(function(course) {
-        var selected = document.querySelector('input[name="policy_' + course.id + '"]:checked');
-        var policyVal = selected ? selected.value : course.current_policy;
-        updatedCourses.push({
-          id: course.id,
-          title: course.title,
-          is_favorite: course.is_favorite,
-          current_policy: policyVal
-        });
-      });
-
-      var payload = {
-        sakai_host: sakaiHost,
-        default_deadline_days: deadlineDays,
-        default_announcement_limit: announcementLimit,
-        courses: updatedCourses
-      };
-
-      if (window.pywebview && window.pywebview.api) {
-        setClosing(true);
-        window.pywebview.api.save_settings(payload).catch(handleCloseError);
-      }
-    });
-
-    document.getElementById('cancel-btn').addEventListener('click', function() {
-      if (closing) return;
-      if (window.pywebview && window.pywebview.api) {
-        setClosing(true);
-        window.pywebview.api.close_window().catch(handleCloseError);
       }
     });
 

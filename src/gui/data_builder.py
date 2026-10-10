@@ -27,13 +27,24 @@ async def build_settings_ui_data() -> SettingsUIData:
     """
     Sakai から全講義一覧を取得し、既存の config.json とマージして
     UI 用データ (SettingsUIData) を構築する。
+    sakai_host が未設定の場合は SakaiClient の呼び出しをスキップする。
     """
-    # 1. 講義一覧とお気に入り情報を SakaiClient から取得 (未ログインなら自動ログイン)
+    # 1. 現在の config.json をロード
+    config = Config.load()
+
+    # 2. sakai_host が未設定の場合は講義一覧取得をスキップして即座に返却
+    if not config.sakai_host:
+        return SettingsUIData(
+            sakai_host="",
+            presets=Config.UNIVERSITY_PRESETS,
+            default_deadline_days=config.default_deadline_days,
+            default_announcement_limit=config.default_announcement_limit,
+            courses=[],
+        )
+
+    # 3. 講義一覧とお気に入り情報を SakaiClient から取得 (未ログインなら自動ログイン)
     async with SakaiClient() as client:
         courses = await client.get_courses(favorites_only=False)
-
-    # 2. 現在の config.json をロード
-    config = Config.load()
 
     # 3. 講義データと既存ポリシーをマージ (お気に入り講義を先頭にソート)
     course_items = []
