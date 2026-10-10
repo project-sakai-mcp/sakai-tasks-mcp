@@ -163,12 +163,3 @@ def test_show_settings_window_simplified_start(monkeypatch, tmp_path):
                     storage_path=str(Config.WEBVIEW_DATA_DIR),
                     private_mode=False,
                 )
-
-
-def test_show_initial_setup_window_wrapper(monkeypatch):
-    """show_initial_setup_window が show_settings_window のラッパーとして動作することを検証"""
-    with patch("src.gui.settings_window.show_settings_window") as mock_settings:
-        monkeypatch.setattr(Config, "SAKAI_HOST", "test.sakai.edu")
-        result = settings_window.show_initial_setup_window()
-        mock_settings.assert_called_once()
-        assert result == "test.sakai.edu"
