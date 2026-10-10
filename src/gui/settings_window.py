@@ -44,12 +44,3 @@ def show_settings_window() -> None:
         storage_path=str(Config.WEBVIEW_DATA_DIR),
         private_mode=False,
     )
-
-
-def show_initial_setup_window() -> str | None:
-    """
-    CLI (--setup) などとの後方互換性のためのラッパー関数。
-    通常の設定画面 (show_settings_window) を起動する。
-    """
-    show_settings_window()
-    return Config.SAKAI_HOST or None
