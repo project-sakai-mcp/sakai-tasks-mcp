@@ -2,18 +2,71 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   margin: 16px;
   color: #333;
+  background-color: rgb(247, 245, 243);
 }
-fieldset {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 12px 14px;
-  margin-bottom: 12px;
+h2 {
+  font-weight: 500;
+  margin: 0;
 }
-legend {
-  font-weight: bold;
-  padding: 0 4px;
+h3 {
+  font-weight: 400;
+  margin: 0;
 }
-
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 30px;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.section-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+.section-desc-link {
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 6px;
+}
+.section-desc-link:hover {
+  opacity: 0.8;
+}
+.policy-desc-box {
+  margin: 0 0 16px 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.6;
+}
+.policy-desc-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.policy-desc-item:last-child {
+  margin-bottom: 0;
+}
+.policy-desc-label {
+  font-weight: 600;
+  color: #475569;
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.policy-desc-text {
+  flex: 1;
+}
+.section {
+  margin-bottom: 30px;
+}
 .empty-courses-notice {
   padding: 24px;
   text-align: center;
@@ -24,3 +77,218 @@ legend {
   font-size: 14px;
   line-height: 1.6;
 }
+
+.suggest-container {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+}
+.suggest-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+.suggest-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 4px 0 0 0;
+  padding: 0;
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+}
+.suggest-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.suggest-item:hover {
+  background-color: #f0f0f0;
+}
+.suggest-item-name {
+  font-weight: 500;
+  color: #333;
+}
+.suggest-item-host {
+  color: #777;
+  font-size: 12px;
+}
+
+/* 講義一覧ツールバー */
+.courses-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-wrapper .search-icon {
+  position: absolute;
+  left: 9px;
+  pointer-events: none;
+  fill: #94a3b8;
+  opacity: 0.7;
+}
+.search-wrapper input {
+  padding: 6px 12px 6px 32px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 240px;
+  box-sizing: border-box;
+  background-color: #ffffff;
+}
+.search-wrapper input::placeholder {
+  color: #94a3b8;
+}
+.batch-select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #333;
+}
+.batch-select-wrapper select {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #757575;
+  cursor: pointer;
+}
+.batch-select-wrapper select option {
+  color: #757575;
+}
+
+/* 講義一覧リスト & 各講義行 */
+.courses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.course-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+.course-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.course-star {
+  color: #1e293b;
+  font-size: 14px;
+}
+
+/* セグメントコントロール (4分割ピルボタン) */
+.segmented-control {
+  display: inline-flex;
+  background-color: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+  user-select: none;
+}
+.segment-btn {
+  padding: 4px 14px;
+  font-size: 13px;
+  color: #475569;
+  background-color: transparent;
+  cursor: pointer;
+  border-right: 1px solid #cbd5e1;
+  text-align: center;
+  min-width: 38px;
+  box-sizing: border-box;
+}
+.segment-btn:last-child {
+  border-right: none;
+}
+.segment-btn.active {
+  background-color: #0284c7;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* お気に入り以外の講義トグル */
+.toggle-other-courses {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+}
+.toggle-other-courses:hover {
+  text-decoration: underline;
+}
+
+/* 詳細パラメータ */
+.params-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 480px;
+}
+.param-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.param-row label {
+  color: #334155;
+  font-weight: 500;
+}
+.param-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.param-input-group input {
+  width: 70px;
+  padding: 5px 8px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: right;
+  box-sizing: border-box;
+}
+.param-unit {
+  font-size: 13px;
+  color: #64748b;
+}
+
+
+
