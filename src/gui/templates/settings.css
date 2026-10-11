@@ -67,16 +67,7 @@ h3 {
 .section {
   margin-bottom: 30px;
 }
-.empty-courses-notice {
-  padding: 24px;
-  text-align: center;
-  background-color: #f1f5f9;
-  color: #475569;
-  border-radius: 6px;
-  margin-top: 8px;
-  font-size: 14px;
-  line-height: 1.6;
-}
+
 
 .suggest-container {
   position: relative;
