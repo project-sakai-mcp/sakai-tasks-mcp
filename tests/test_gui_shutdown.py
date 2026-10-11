@@ -1,145 +1,165 @@
-"""Exercise real pywebview API replies with a controllable GUI substitute."""
+"""Tests for config atomic save and GUI settings lifecycle."""
 
-import threading
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
-
+import json
+from unittest.mock import AsyncMock, patch
 import pytest
-from webview.event import Event
-from webview.util import js_bridge_call
 
-from src.config import AIPolicyMode, AppConfigData
+from src.config import AIPolicyMode, AppConfigData, Config
+from src.gui.api import SettingsApi
+from src.gui.data_builder import CourseSettingItem, SettingsUIData
 from src.gui import settings_window
-from src.gui.data_builder import SettingsUIData
 
 
-@pytest.mark.parametrize("screen,action", [
-    (screen, action)
-    for screen in ("setup", "settings")
-    for action in ("submit", "close_window", "cancel", "native_close", "save_error")
-    if (screen, action) != ("setup", "save_error")
-])
-def test_close_waits_for_api_response(screen, action, monkeypatch, tmp_path):
-    response_started = threading.Event()
-    release_response = threading.Event()
-    destroyed = threading.Event()
-    order = []
-    bridge_threads = []
-    scripts = []
-    alive_at_destroy = []
-    config_path = tmp_path / "config.json"
-    config_path.write_text("{}")
-    monkeypatch.setattr(settings_window.Config, "CONFIG_FILE_PATH", config_path)
-    monkeypatch.setattr(settings_window.Config, "load", lambda: AppConfigData(sakai_host="example.edu"))
-    save = Mock(side_effect=OSError("test save failure") if action == "save_error" else None)
-    monkeypatch.setattr(settings_window.Config, "save", save)
-    ui_data = SettingsUIData(
-        sakai_host="example.edu", presets={}, default_deadline_days=30,
-        default_announcement_limit=7, courses=[],
+def test_config_atomic_save(tmp_path, monkeypatch):
+    """Config.save() がアトミックに書き込みを行い、一時ファイルが残留しないことを検証"""
+    config_dir = tmp_path / "app_data"
+    config_file = config_dir / "config.json"
+    tmp_file = config_dir / "config.json.tmp"
+
+    monkeypatch.setattr(Config, "APP_DATA_DIR", config_dir)
+    monkeypatch.setattr(Config, "CONFIG_FILE_PATH", config_file)
+
+    data = AppConfigData(
+        sakai_host="tact.ac.thers.ac.jp",
+        policies={"course_1": AIPolicyMode.ALLOW_ALL},
+        default_deadline_days=14,
+        default_announcement_limit=5,
+        request_timeout=20.0,
+        cache_ttl=600.0,
     )
-    monkeypatch.setattr(settings_window, "build_settings_ui_data", AsyncMock(return_value=ui_data))
 
-    class Window:
-        _functions = {}
+    Config.save(data)
 
-        def __init__(self):
-            self.events = SimpleNamespace(closed=Event(self))
+    # 1. 目的のファイルが存在し、内容が一致する
+    assert config_file.exists()
+    assert not tmp_file.exists(), "一時ファイル .tmp が残存してはいけない"
 
-        def evaluate_js(self, script):
-            bridge_threads.append(threading.current_thread())
-            scripts.append(script)
-            order.append("reply-start")
-            response_started.set()
-            if not release_response.wait(3):
-                raise RuntimeError("test did not release the API reply")
-            order.append("reply-finished")
+    with open(config_file, "r", encoding="utf-8") as f:
+        saved_dict = json.load(f)
+    assert saved_dict["sakai_host"] == "tact.ac.thers.ac.jp"
+    assert saved_dict["policies"]["course_1"] == "allow_all"
+    assert saved_dict["default_deadline_days"] == 14
 
-        def destroy(self):
-            alive_at_destroy.append(any(t.is_alive() for t in bridge_threads))
-            order.append("destroy")
-            self.events.closed.set()
-            destroyed.set()
+    # 2. クラス変数が同期されている
+    assert Config.SAKAI_HOST == "tact.ac.thers.ac.jp"
+    assert Config.POLICIES["course_1"] == AIPolicyMode.ALLOW_ALL
 
-    window = Window()
 
-    def create_window(**kwargs):
-        window._js_api = kwargs["js_api"]
-        return window
+def test_config_atomic_save_preserves_old_file_on_error(tmp_path, monkeypatch):
+    """書き込み・置換エラー時に既存の config.json が破損・消失しないことを検証"""
+    config_dir = tmp_path / "app_data"
+    config_file = config_dir / "config.json"
 
-    def start(func=None, args=None, **kwargs):
-        watcher = threading.Thread(target=func, args=args, daemon=True) if func else None
-        if watcher:
-            watcher.start()
-        try:
-            if action == "native_close":
-                window.events.closed.set()
-                if watcher:
-                    watcher.join(2)
-                    assert not watcher.is_alive(), "native close left the watcher running"
-                assert not destroyed.is_set()
-                return
+    monkeypatch.setattr(Config, "APP_DATA_DIR", config_dir)
+    monkeypatch.setattr(Config, "CONFIG_FILE_PATH", config_file)
 
-            if action in ("submit", "save_error"):
-                if screen == "setup":
-                    method, params = "select_host", [" https://example.edu/path "]
-                else:
-                    method, params = "save_settings", [{
-                        "sakai_host": " https://example.edu/path ",
-                        "default_deadline_days": 14,
-                        "default_announcement_limit": 3,
-                        "courses": [{"id": "course-1", "current_policy": "text_only"}],
-                    }]
-            else:
-                method, params = action, []
-            js_bridge_call(window, method, params, "test-request")
-            assert response_started.wait(2)
-            # Hold longer than the old 0.1-second Timer: a slow reply must remain safe.
-            assert not destroyed.wait(0.2), "closed before the JS reply completed"
-            if screen == "settings" and action == "submit":
-                save.assert_called_once()
-            if screen == "setup":
-                save.assert_not_called()
+    # 初期データを書き込み
+    initial_data = AppConfigData(sakai_host="original.domain.ac.jp")
+    Config.save(initial_data)
+    assert config_file.read_text(encoding="utf-8").find("original.domain.ac.jp") != -1
 
-            release_response.set()
-            for thread in bridge_threads:
-                thread.join(2)
-                assert not thread.is_alive()
+    # os.replace が失敗する状況をシミュレート
+    def fail_replace(src, dst):
+        raise OSError("Simulated disk error during replace")
 
-            if action == "save_error":
-                assert "isError: true" in scripts[0]
-                assert not window._js_api.close_event.is_set()
-                assert not destroyed.is_set()
-                window.events.closed.set()
-            else:
-                assert destroyed.wait(2)
-                assert alive_at_destroy == [False]
-                assert order == ["reply-start", "reply-finished", "destroy"]
-            if watcher:
-                watcher.join(2)
-                assert not watcher.is_alive()
-        finally:
-            release_response.set()
-            window.events.closed.set()
-            for thread in bridge_threads:
-                thread.join(2)
-            if watcher:
-                watcher.join(2)
+    monkeypatch.setattr("os.replace", fail_replace)
 
-    monkeypatch.setattr(settings_window.webview, "create_window", create_window)
-    monkeypatch.setattr(settings_window.webview, "start", start)
-    if screen == "setup":
-        result = settings_window.show_initial_setup_window()
-        assert result == ("example.edu" if action == "submit" else None)
-    else:
-        settings_window.show_settings_window()
+    with pytest.raises(OSError):
+        Config.save(AppConfigData(sakai_host="new.domain.ac.jp"))
 
-    if action == "submit":
-        save.assert_called_once()
-        saved = save.call_args.args[0]
-        assert saved.sakai_host == "example.edu"
-        if screen == "settings":
-            assert saved.default_deadline_days == 14
-            assert saved.default_announcement_limit == 3
-            assert saved.policies == {"course-1": AIPolicyMode.TEXT_ONLY}
-    elif action != "save_error":
-        save.assert_not_called()
+    # 既存のファイルが無傷で残っていること
+    assert config_file.exists()
+    assert "original.domain.ac.jp" in config_file.read_text(encoding="utf-8")
+
+
+def test_settings_api_save_settings(tmp_path, monkeypatch):
+    """SettingsApi.save_settings() が正しく Config を更新して True を返すことを検証"""
+    config_dir = tmp_path / "app_data"
+    config_file = config_dir / "config.json"
+    monkeypatch.setattr(Config, "APP_DATA_DIR", config_dir)
+    monkeypatch.setattr(Config, "CONFIG_FILE_PATH", config_file)
+
+    ui_data = SettingsUIData(
+        sakai_host="",
+        presets={"名大": "tact.ac.thers.ac.jp"},
+        default_deadline_days=30,
+        default_announcement_limit=7,
+        courses=[
+            CourseSettingItem(
+                id="c1",
+                title="数学",
+                is_favorite=True,
+                current_policy=AIPolicyMode.TEXT_ONLY,
+            )
+        ],
+    )
+    api = SettingsApi(initial_data=ui_data)
+
+    payload = {
+        "sakai_host": " https://tact.ac.thers.ac.jp/portal ",
+        "default_deadline_days": 15,
+        "default_announcement_limit": 10,
+        "request_timeout": 25.0,
+        "cache_ttl": 400.0,
+        "courses": [
+            {"id": "c1", "current_policy": "allow_all"}
+        ]
+    }
+
+    result = api.save_settings(payload)
+    assert result is True
+
+    # 保存された設定値の検証
+    loaded = Config.load()
+    assert loaded.sakai_host == "tact.ac.thers.ac.jp"
+    assert loaded.default_deadline_days == 15
+    assert loaded.default_announcement_limit == 10
+    assert loaded.policies["c1"] == AIPolicyMode.ALLOW_ALL
+
+
+@pytest.mark.asyncio
+async def test_data_builder_skips_sakai_when_host_unconfigured(monkeypatch, tmp_path):
+    """sakai_host が未設定の場合、SakaiClient の呼び出しをスキップして courses=[] を返すことを検証"""
+    from src.gui.data_builder import build_settings_ui_data
+
+    config_dir = tmp_path / "app_data"
+    config_file = config_dir / "config.json"
+    monkeypatch.setattr(Config, "APP_DATA_DIR", config_dir)
+    monkeypatch.setattr(Config, "CONFIG_FILE_PATH", config_file)
+    monkeypatch.setattr(Config, "SAKAI_HOST", "")
+
+    # Config を空ホストで保存
+    Config.save(AppConfigData(sakai_host=""))
+
+    with patch("src.gui.data_builder.SakaiClient") as mock_client:
+        ui_data = await build_settings_ui_data()
+        # SakaiClient がインスタンス化されないこと
+        mock_client.assert_not_called()
+        assert ui_data.sakai_host == ""
+        assert ui_data.courses == []
+
+
+def test_show_settings_window_simplified_start(monkeypatch, tmp_path):
+    """show_settings_window が webview.start() を直接呼び出し OS ネイティブ終了に委ねることを検証"""
+    config_dir = tmp_path / "app_data"
+    config_file = config_dir / "config.json"
+    monkeypatch.setattr(Config, "APP_DATA_DIR", config_dir)
+    monkeypatch.setattr(Config, "CONFIG_FILE_PATH", config_file)
+
+    ui_data = SettingsUIData(
+        sakai_host="",
+        presets={},
+        default_deadline_days=30,
+        default_announcement_limit=7,
+        courses=[],
+    )
+
+    with patch("src.gui.settings_window.build_settings_ui_data", AsyncMock(return_value=ui_data)):
+        with patch("webview.create_window") as mock_create_window:
+            with patch("webview.start") as mock_start:
+                settings_window.show_settings_window()
+                mock_create_window.assert_called_once()
+                mock_start.assert_called_once_with(
+                    storage_path=str(Config.WEBVIEW_DATA_DIR),
+                    private_mode=False,
+                )

@@ -136,7 +136,7 @@ class Config:
 
     @classmethod
     def save(cls, data: AppConfigData | None = None) -> None:
-        """設定を config.json に書き込み、即座にクラス変数を同期する (実行中随時呼び出し可能)"""
+        """設定を config.json にアトミックに書き込み、即座にクラス変数を同期する (実行中随時呼び出し可能)"""
         cls.APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
         if data is None:
             data = AppConfigData(
@@ -147,10 +147,17 @@ class Config:
                 request_timeout=cls.REQUEST_TIMEOUT,
                 cache_ttl=cls.CACHE_TTL,
             )
-        with open(cls.CONFIG_FILE_PATH, "w", encoding="utf-8") as f:
-            f.write(data.model_dump_json(indent=2))
-        if cls.CONFIG_FILE_PATH.exists():
-            cls._last_loaded_mtime = cls.CONFIG_FILE_PATH.stat().st_mtime
+
+        content = data.model_dump_json(indent=2)
+        # 同一ディレクトリ内に一時ファイルを作成してアトミックに置換
+        temp_path = cls.APP_DATA_DIR / f"{cls.CONFIG_FILE_PATH.name}.tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(temp_path, cls.CONFIG_FILE_PATH)
+        cls._last_loaded_mtime = cls.CONFIG_FILE_PATH.stat().st_mtime
         cls.apply_data(data)
 
     @classmethod

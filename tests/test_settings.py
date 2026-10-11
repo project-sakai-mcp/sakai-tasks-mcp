@@ -22,7 +22,7 @@ def test_get_client_raises_when_host_unconfigured(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError) as exc_info:
         get_client()
 
-    assert "Sakai の接続先大学が設定されていません" in str(exc_info.value)
+    assert "接続先大学のSakaiのドメインが設定されていません" in str(exc_info.value)
     assert "open_settings" in str(exc_info.value)
 
 
@@ -34,38 +34,23 @@ async def test_check_auth_status_returns_unconfigured_message(monkeypatch, tmp_p
 
     res = await check_auth_status()
     assert res["authenticated"] is False
-    assert "Sakai の接続先大学が設定されていません" in res["message"]
+    assert "接続先大学のSakaiのドメインが設定されていません" in res["message"]
 
 
-def test_show_settings_window_opens_initial_setup_first_if_unconfigured(monkeypatch, tmp_path):
-    """ホスト未設定時に show_settings_window がまず初期設定を開くことを検証"""
+def test_show_settings_window_opens_directly(monkeypatch, tmp_path):
+    """ホスト未設定時でも初期ダイアログを経由せず直接設定画面を開くことを検証"""
     from src.gui.settings_window import show_settings_window
 
     test_config_path = tmp_path / "config.json"
     monkeypatch.setattr(Config, "CONFIG_FILE_PATH", test_config_path)
     monkeypatch.setattr(Config, "SAKAI_HOST", "")
 
-    # 初期設定でキャンセルされた場合
-    with patch("src.gui.settings_window.show_initial_setup_window", return_value=None) as mock_setup:
-        with patch("src.gui.settings_window.build_settings_ui_data") as mock_build:
-            show_settings_window()
-            mock_setup.assert_called_once()
-            # キャンセルされたので講義一覧取得には進まない
-            mock_build.assert_not_called()
+    with patch("src.gui.settings_window.build_settings_ui_data", new_callable=AsyncMock) as mock_build:
+        mock_build.return_value = MagicMock()
+        with patch("webview.create_window") as mock_create_window:
+            with patch("webview.start") as mock_start:
+                show_settings_window()
+                mock_build.assert_called_once()
+                mock_create_window.assert_called_once()
+                mock_start.assert_called_once()
 
-    # 初期設定で大学が選ばれた場合
-    def select_host():
-        # 設定を保存するシミュレーション
-        Config.save(AppConfigData(sakai_host="panda.ecs.kyoto-u.ac.jp"))
-        return "panda.ecs.kyoto-u.ac.jp"
-
-    with patch("src.gui.settings_window.show_initial_setup_window", side_effect=select_host) as mock_setup:
-        with patch("src.gui.settings_window.build_settings_ui_data", new_callable=AsyncMock) as mock_build:
-            mock_build.return_value = MagicMock()
-            with patch("webview.create_window") as mock_create_window:
-                with patch("webview.start") as mock_start:
-                    show_settings_window()
-                    mock_setup.assert_called_once()
-                    mock_build.assert_called_once()
-                    mock_create_window.assert_called_once()
-                    mock_start.assert_called_once()

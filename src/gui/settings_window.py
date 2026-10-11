@@ -6,53 +6,30 @@ import sys
 import webview
 
 from src.config import Config
-from src.gui.api import InitialSetupApi, SettingsApi
+from src.gui.api import SettingsApi
 from src.gui.data_builder import build_settings_ui_data
-
-
-def _destroy_watcher(win: webview.Window, api: InitialSetupApi | SettingsApi) -> None:
-    api.close_event.wait()
-    request_thread = api._close_request_thread
-    if request_thread is None:
-        # タイトルバーから閉じた場合は、すでにウィンドウが終了している。
-        return
-    # API メソッド復帰後の JS 返答も完了させてから GUI ループを止める。
-    request_thread.join()
-    if not win.events.closed.is_set():
-        win.destroy()
 
 
 def show_settings_window() -> None:
     """
     ユーザー詳細設定画面 (WebView GUI) を起動する。
     別プロセス (--settings) からメインスレッドで直接呼び出される。
-    Sakai ホストが未設定の場合は、まず大学選択ダイアログ (show_initial_setup_window) を表示する。
-    ホスト確定後にセッション確認および UI データ構築 (SettingsUIData) を行い、
-    詳細設定画面 (settings.html) を描画する。
+    Sakai ホスト未設定時は講義一覧取得をスキップして起動し、
+    設定変更は自動保存され、ユーザーはOS標準の[✕]ボタンでウィンドウを閉じる。
     """
     template_path = Path(__file__).parent / "templates" / "settings.html"
 
-    # 1. ホスト未設定または config.json 未存在時は先に初期セットアップダイアログを表示
-    config = Config.load()
-    if not config.sakai_host or not Config.CONFIG_FILE_PATH.exists():
-        selected_host = show_initial_setup_window()
-        if not selected_host:
-            # ユーザーがキャンセルした場合は通常設定画面に進まず終了
-            return
-        # 最新設定を再ロード
-        config = Config.load()
-
-    # 2. UI データの事前構築 (未ログイン時は内部で get_valid_cookies が呼ばれ、必要に応じ WebView ログインが完了)
+    # 1. UI データの事前構築 (未設定時は空の講義一覧が返る)
     try:
         ui_data = asyncio.run(build_settings_ui_data())
     except Exception as e:
         print(f"設定データの読み込みに失敗しました: {e}", file=sys.stderr)
         return
 
-    # 3. JS 通信ブリッジを初期化
+    # 2. JS 通信ブリッジを初期化
     api = SettingsApi(initial_data=ui_data)
 
-    # 4. 設定画面ウィンドウをメインスレッドで直接生成して起動
+    # 3. 設定画面ウィンドウをメインスレッドで直接生成して起動
     window = webview.create_window(
         title="Sakai Tasks MCP 設定",
         url=template_path.as_uri(),
@@ -61,40 +38,9 @@ def show_settings_window() -> None:
         height=Config.WEBVIEW_WINDOW_HEIGHT,
         resizable=True,
     )
-    api.set_window(window)
 
-    # webview.start はメインスレッドで起動 (OS 制約遵守)
+    # 4. webview.start はメインスレッドで起動 (OS ネイティブの[✕]ボタンで終了)
     webview.start(
-        _destroy_watcher, (window, api),
-        storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False,
+        storage_path=str(Config.WEBVIEW_DATA_DIR),
+        private_mode=False,
     )
-
-
-def show_initial_setup_window() -> str | None:
-    """
-    初回起動時やインストーラ、CLI (--setup) から呼び出される大学プリセット選択ダイアログ。
-    """
-    template_path = Path(__file__).parent / "templates" / "initial_setup.html"
-    config = Config.load()
-    api = InitialSetupApi(presets=Config.UNIVERSITY_PRESETS, current_host=config.sakai_host)
-
-    window = webview.create_window(
-        title="Sakai Tasks MCP - 初期セットアップ",
-        url=template_path.as_uri(),
-        js_api=api,
-        width=500,
-        height=400,
-        resizable=False,
-    )
-    api.set_window(window)
-
-    webview.start(
-        _destroy_watcher, (window, api),
-        storage_path=str(Config.WEBVIEW_DATA_DIR), private_mode=False,
-    )
-
-    if api.selected_host:
-        config.sakai_host = api.selected_host
-        Config.save(config)
-        return api.selected_host
-    return None

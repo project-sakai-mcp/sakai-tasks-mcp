@@ -415,7 +415,6 @@ def main():
     parser = argparse.ArgumentParser(description="Sakai Tasks MCP Server")
     parser.add_argument("--host", type=str, help="Sakai LMS のホスト名 (例: tact.ac.thers.ac.jp)")
     parser.add_argument("--settings", action="store_true", help="ユーザー設定 GUI 画面を起動する")
-    parser.add_argument("--setup", action="store_true", help="初回大学プリセット選択ダイアログを起動する")
     parser.add_argument("--login", action="store_true", help="WebView ログイン画面を別プロセスのメインスレッドで実行して Cookie を保存する")
     args = parser.parse_args()
 
@@ -433,12 +432,6 @@ def main():
     if args.settings:
         from src.gui.settings_window import show_settings_window
         show_settings_window()
-        sys.exit(0)
-
-    # 3. --setup 引数指定時: 初回大学プリセット選択ダイアログを起動して終了
-    if args.setup:
-        from src.gui.settings_window import show_initial_setup_window
-        show_initial_setup_window()
         sys.exit(0)
 
     # 4. 通常起動時: Config を安全に初期化 (stdio タイムアウト防止のためブロッキング GUI は出さない)

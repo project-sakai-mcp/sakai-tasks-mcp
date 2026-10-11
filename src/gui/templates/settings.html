@@ -3,357 +3,152 @@
 <head>
   <meta charset="UTF-8">
   <title>Sakai Tasks MCP 設定</title>
+  <link rel="stylesheet" href="settings.css">
 </head>
 <body>
-  <h2>⚙️ Sakai Tasks MCP 設定</h2>
-
-  <!-- 1. ドメイン設定行 -->
-  <fieldset>
-    <legend>🌐 Sakai 接続先ドメイン</legend>
-    <input type="text" id="sakai-host" style="width: 300px;" placeholder="例: tact.ac.thers.ac.jp">
-    <select id="preset-select">
-      <option value="">🏛️ プリセットから選ぶ ▼</option>
-    </select>
-  </fieldset>
-
-  <!-- 2. 権限詳細説明 (アコーディオン / details) -->
-  <details style="margin-top: 10px;">
-    <summary>📖 各利用権限の説明を表示</summary>
-    <div style="padding: 8px; border: 1px solid #ccc; margin-top: 5px;">
-      <ul>
-        <li><strong>全て</strong>: 課題指示文・カレンダー締切・講義資料ファイルのダウンロードすべてを AI に許可します。</li>
-        <li><strong>強</strong>: 課題指示文・締切の対話は許可しますが、講義資料ファイルのダウンロードを禁止します。</li>
-        <li><strong>弱</strong>: 締切・カレンダー予定情報のみ取得を許可し、課題指示文・本文・講義資料はマスクします。</li>
-        <li><strong>無効</strong>: AI から講義情報の取得を完全に除外・隠蔽します。</li>
-      </ul>
-    </div>
-  </details>
-
-  <!-- 3 & 4. 講義絞り込み検索 -->
-  <fieldset style="margin-top: 10px;">
-    <legend>🛡️ 講義別 AI 利用ポリシー設定</legend>
-    <div style="margin-bottom: 10px;">
-      <label for="search-box">🔍 講義名で絞り込み:</label>
-      <input type="text" id="search-box" style="width: 250px;" placeholder="講義名を入力...">
-    </div>
-
-    <!-- 5. 講義別ポリシー設定表 -->
-    <table border="1" id="courses-table" style="width: 100%; border-collapse: collapse;">
-      <thead>
-        <tr>
-          <th rowspan="2" style="vertical-align: middle;">講義名</th>
-          <th style="width: 80px; text-align: center;">全て</th>
-          <th style="width: 80px; text-align: center;">強</th>
-          <th style="width: 80px; text-align: center;">弱</th>
-          <th style="width: 80px; text-align: center;">無効</th>
-        </tr>
-        <tr>
-          <th style="text-align: center; padding: 4px;">
-            <input type="radio" name="batch_policy" id="btn-all-allow" title="すべて『全て』に設定" style="cursor: pointer;">
-          </th>
-          <th style="text-align: center; padding: 4px;">
-            <input type="radio" name="batch_policy" id="btn-all-text" title="すべて『強』に設定" style="cursor: pointer;">
-          </th>
-          <th style="text-align: center; padding: 4px;">
-            <input type="radio" name="batch_policy" id="btn-all-schedule" title="すべて『弱』に設定" style="cursor: pointer;">
-          </th>
-          <th style="text-align: center; padding: 4px;">
-            <input type="radio" name="batch_policy" id="btn-all-blocked" title="すべて『無効』に設定" style="cursor: pointer;">
-          </th>
-        </tr>
-      </thead>
-      <tbody id="courses-tbody">
-        <!-- 動的描画 -->
-      </tbody>
-    </table>
-  </fieldset>
-
-  <!-- 6. 詳細パラメータ設定行 -->
-  <fieldset style="margin-top: 10px;">
-    <legend>⏱️ 詳細パラメータ設定</legend>
-    <div>
-      <label for="default-deadline-days">直近締切の取得対象日数:</label>
-      <input type="number" id="default-deadline-days" min="1" max="365"> 日間
-    </div>
-    <div style="margin-top: 5px;">
-      <label for="default-announcement-limit">お知らせ取得の最大件数:</label>
-      <input type="number" id="default-announcement-limit" min="1" max="100"> 件
-    </div>
-  </fieldset>
-
-  <!-- 7. 保存・アクションフッター -->
-  <div style="margin-top: 15px; text-align: right;">
-    <button type="button" id="cancel-btn">キャンセル</button>
-    <button type="button" id="save-btn" style="margin-left: 10px;">💾 保存して閉じる</button>
+  <div class='title'>
+    <svg class="icon" aria-hidden="true" width="30px" height="30px">
+      <use href="#icon-setting"></use>
+    </svg>
+    <h2>Sakai Tasks MCP 設定</h2>
   </div>
 
-  <script>
-    var closing = false;
+  <div class="section">
+    <div class="section-title">
+      <svg class="icon" aria-hidden="true" width="18px" height="18px">
+        <use href="#icon-web"></use>
+      </svg>
+      <h3>ドメイン</h3>
+    </div>
+    <p class="section-desc">大学の Sakai LMS ドメインを指定します</p>
+    <div class="suggest-container">
+      <input type="text" id="sakai-host" class="suggest-input" placeholder="例: tact.ac.thers.ac.jp" autocomplete="off">
+      <ul id="suggest-list" class="suggest-list" style="display: none;"></ul>
+    </div>
+  </div>
 
-    function setClosing(value) {
-      closing = value;
-      document.getElementById('save-btn').disabled = value;
-      document.getElementById('cancel-btn').disabled = value;
-    }
+  <div class="section">
+    <div class="section-title">
+      <svg class="icon" aria-hidden="true" width="18px" height="18px">
+        <use href="#icon-security"></use>
+      </svg>
+      <h3>AIの権限</h3>
+    </div>
+    <p class="section-desc">
+      講義ごとに AI がアクセスできる情報の範囲を設定します<span id="toggle-policy-desc" class="section-desc-link">詳細を表示</span>
+    </p>
 
-    function handleCloseError() {
-      setClosing(false);
-      alert('処理に失敗しました。もう一度お試しください。');
-    }
+    <!-- 権限詳細説明 (トグルで開閉) -->
+    <div id="policy-desc-box" class="policy-desc-box" style="display: none;">
+      <div class="policy-desc-item">
+        <span class="policy-desc-label">全て</span>
+        <span class="policy-desc-text">講義情報、課題・小テスト（タイトル・締切・指示文・配点）、お知らせ（タイトル・公開日時・本文）、カレンダー予定（日時・タイトル・詳細説明）、講義資料・添付ファイル（ファイル名・サイズ・URL・ファイル本体ダウンロード）をAIがアクセス可能にします。</span>
+      </div>
+      <div class="policy-desc-item">
+        <span class="policy-desc-label">強</span>
+        <span class="policy-desc-text">講義情報、課題・小テスト（タイトル・締切・指示文・配点）、お知らせ（タイトル・公開日時・本文）、カレンダー予定（日時・タイトル・詳細説明）、講義資料・添付ファイル（ファイル名・サイズのみ）をAIがアクセス可能にします。</span>
+      </div>
+      <div class="policy-desc-item">
+        <span class="policy-desc-label">弱</span>
+        <span class="policy-desc-text">講義情報、課題・小テスト（タイトル・締切日時）、お知らせ（タイトル・公開日時）、カレンダー予定（タイトル・日時）をAIがアクセス可能にします。</span>
+      </div>
+      <div class="policy-desc-item">
+        <span class="policy-desc-label">無効</span>
+        <span class="policy-desc-text">講義情報、課題、お知らせ、カレンダー予定、講義資料を含むすべてのデータへのアクセスを遮断し、アクセス可能な対象をなしにします。</span>
+      </div>
+    </div>
 
-    var globalCourses = [];
+    <p id="empty-courses-notice" class="section-desc" style="display: none;">
+      ドメインの指定後、Sakai Tasks MCP 設定を再起動することでAIの権限を設定できます
+    </p>
 
-    function init() {
-      if (window.pywebview && window.pywebview.api) {
-        loadData();
-      } else {
-        window.addEventListener('pywebviewready', loadData);
-      }
-    }
+    <!-- 講義別ポリシー設定コントロール -->
+    <div id="courses-container">
+      <div class="courses-toolbar">
+        <div class="search-wrapper">
+          <svg class="search-icon" aria-hidden="true" width="20px" height="20px">
+            <use href="#icon-search"></use>
+          </svg>
+          <input type="text" id="search-box" placeholder="講義名で検索">
+        </div>
+        <div class="batch-select-wrapper">
+          <select id="batch-select" aria-label="一括設定">
+            <option value="" hidden selected>一括設定</option>
+            <option value="allow_all">全て</option>
+            <option value="text_only">強</option>
+            <option value="schedule_only">弱</option>
+            <option value="blocked">無効</option>
+          </select>
+        </div>
+      </div>
 
-    function loadData() {
-      window.pywebview.api.get_initial_data().then(function(data) {
-        renderUI(data);
-      });
-    }
+      <!-- 講義一覧リスト -->
+      <div id="courses-list" class="courses-list">
+        <!-- 動的描画 -->
+      </div>
+    </div>
+  </div>
 
-    function renderUI(data) {
-      // 1. ドメイン設定
-      var hostInput = document.getElementById('sakai-host');
-      var presetSelect = document.getElementById('preset-select');
-      hostInput.value = data.sakai_host;
+  <!-- 6. 詳細パラメータセクション -->
+  <div class="section">
+    <div class="section-title">
+      <svg class="icon" aria-hidden="true" width="18px" height="18px">
+        <use href="#icon-time"></use>
+      </svg>
+      <h3>詳細パラメータ</h3>
+    </div>
+    <p class="section-desc">締切の対象日数やお知らせの最大取得件数を調整します</p>
 
-      for (var name in data.presets) {
-        var opt = document.createElement('option');
-        opt.value = data.presets[name];
-        opt.textContent = name;
-        if (data.presets[name] === data.sakai_host) {
-          opt.selected = true;
-        }
-        presetSelect.appendChild(opt);
-      }
+    <div class="params-container">
+      <div class="param-row">
+        <label for="default-deadline-days">直近締切の取得対象日数</label>
+        <div class="param-input-group">
+          <input type="number" id="default-deadline-days" min="1" max="365">
+          <span class="param-unit">日間</span>
+        </div>
+      </div>
+      <div class="param-row">
+        <label for="default-announcement-limit">お知らせ取得の最大件数</label>
+        <div class="param-input-group">
+          <input type="number" id="default-announcement-limit" min="1" max="100">
+          <span class="param-unit">件</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
-      presetSelect.addEventListener('change', function() {
-        if (presetSelect.value) {
-          hostInput.value = presetSelect.value;
-        }
-      });
+  <script src="settings.js"></script>
 
-      // 6. 詳細パラメータ
-      document.getElementById('default-deadline-days').value = data.default_deadline_days;
-      document.getElementById('default-announcement-limit').value = data.default_announcement_limit;
-
-      // 5. 講義一覧 (お気に入りとその他に分離)
-      globalCourses = data.courses;
-      var tbody = document.getElementById('courses-tbody');
-      tbody.innerHTML = '';
-
-      var policies = ['allow_all', 'text_only', 'schedule_only', 'blocked'];
-      var favCourses = globalCourses.filter(function(c) { return c.is_favorite; });
-      var otherCourses = globalCourses.filter(function(c) { return !c.is_favorite; });
-
-      var otherRowsCollapsed = true;
-
-      function createCourseRow(course, isFav) {
-        var tr = document.createElement('tr');
-        tr.dataset.courseId = course.id;
-        tr.dataset.courseTitle = course.title.toLowerCase();
-        tr.dataset.isFavorite = isFav ? "true" : "false";
-
-        // 講義名セル
-        var tdTitle = document.createElement('td');
-        var prefix = isFav ? '★ ' : '  ';
-        tdTitle.textContent = prefix + course.title;
-        tr.appendChild(tdTitle);
-
-        // 各ポリシーのラジオボタン
-        policies.forEach(function(pol) {
-          var tdRadio = document.createElement('td');
-          tdRadio.style.textAlign = 'center';
-          var radio = document.createElement('input');
-          radio.type = 'radio';
-          radio.name = 'policy_' + course.id;
-          radio.value = pol;
-          if (course.current_policy === pol) {
-            radio.checked = true;
-          }
-          radio.addEventListener('change', updateBatchRadioState);
-          tdRadio.appendChild(radio);
-          tr.appendChild(tdRadio);
-        });
-
-        return tr;
-      }
-
-      // お気に入り講義を描画
-      favCourses.forEach(function(course) {
-        tbody.appendChild(createCourseRow(course, true));
-      });
-
-      // お気に入り以外の講義が存在する場合、トグル見出し行と各講義行を追加
-      if (otherCourses.length > 0) {
-        var toggleTr = document.createElement('tr');
-        toggleTr.id = 'other-courses-header-row';
-        toggleTr.style.backgroundColor = '#f0f0f0';
-        toggleTr.style.cursor = 'pointer';
-        toggleTr.style.userSelect = 'none';
-
-        var toggleTd = document.createElement('td');
-        toggleTd.colSpan = 5;
-        toggleTd.style.fontSize = '13px';
-        toggleTd.style.color = '#3d3d3d';
-        function updateToggleText() {
-          toggleTd.textContent = 'お気に入り以外の講義 (' + otherCourses.length + ' 件) を' + (otherRowsCollapsed ? '表示...' : '非表示');
-        }
-        updateToggleText();
-
-        toggleTr.appendChild(toggleTd);
-        tbody.appendChild(toggleTr);
-
-        otherCourses.forEach(function(course) {
-          var tr = createCourseRow(course, false);
-          tr.className = 'other-course-row';
-          tr.style.display = otherRowsCollapsed ? 'none' : '';
-          tbody.appendChild(tr);
-        });
-
-        toggleTr.addEventListener('click', function() {
-          otherRowsCollapsed = !otherRowsCollapsed;
-          updateToggleText();
-          var otherRows = document.querySelectorAll('.other-course-row');
-          var query = document.getElementById('search-box').value.toLowerCase().trim();
-          otherRows.forEach(function(row) {
-            if (otherRowsCollapsed) {
-              row.style.display = 'none';
-            } else {
-              var title = row.dataset.courseTitle;
-              row.style.display = (query === '' || title.indexOf(query) !== -1) ? '' : 'none';
-            }
-          });
-        });
-      }
-
-      updateBatchRadioState();
-    }
-
-    // 3. 一括適用ラジオボタン
-    function setAllPolicies(policyValue) {
-      var radios = document.querySelectorAll('#courses-tbody input[type="radio"][value="' + policyValue + '"]');
-      radios.forEach(function(radio) {
-        radio.checked = true;
-      });
-      updateBatchRadioState();
-    }
-
-    // 各講義の選択状態をもとに、全行一致していればヘッダーの丸ボタンをONにする
-    function updateBatchRadioState() {
-      var policies = [
-        { id: 'btn-all-allow', value: 'allow_all' },
-        { id: 'btn-all-text', value: 'text_only' },
-        { id: 'btn-all-schedule', value: 'schedule_only' },
-        { id: 'btn-all-blocked', value: 'blocked' }
-      ];
-
-      var totalRows = globalCourses.length;
-      if (totalRows === 0) return;
-
-      policies.forEach(function(item) {
-        var checkedCount = document.querySelectorAll('#courses-tbody input[type="radio"][value="' + item.value + '"]:checked').length;
-        var headerRadio = document.getElementById(item.id);
-        headerRadio.checked = (checkedCount === totalRows);
-      });
-    }
-
-    document.getElementById('btn-all-allow').addEventListener('change', function() { setAllPolicies('allow_all'); });
-    document.getElementById('btn-all-text').addEventListener('change', function() { setAllPolicies('text_only'); });
-    document.getElementById('btn-all-schedule').addEventListener('change', function() { setAllPolicies('schedule_only'); });
-    document.getElementById('btn-all-blocked').addEventListener('change', function() { setAllPolicies('blocked'); });
-
-    // 4. 講義絞り込み検索 (検索時は該当する行を自動展開して表示)
-    document.getElementById('search-box').addEventListener('input', function() {
-      var query = this.value.toLowerCase().trim();
-      var rows = document.querySelectorAll('#courses-tbody tr[data-course-id]');
-      var toggleRow = document.getElementById('other-courses-header-row');
-
-      if (query !== '') {
-        // 検索文字列があるときは一致した行をすべて表示
-        if (toggleRow) toggleRow.style.display = 'none';
-        rows.forEach(function(row) {
-          var title = row.dataset.courseTitle;
-          if (title.indexOf(query) !== -1) {
-            row.style.display = '';
-          } else {
-            row.style.display = 'none';
-          }
-        });
-      } else {
-        // 検索がクリアされたら折りたたみ状態を復元
-        if (toggleRow) toggleRow.style.display = '';
-        rows.forEach(function(row) {
-          if (row.dataset.isFavorite === 'true') {
-            row.style.display = '';
-          } else {
-            row.style.display = (document.getElementById('other-courses-header-row') && !row.classList.contains('other-course-row')) ? '' : (row.style.display = (toggleRow && toggleRow.textContent.indexOf('折りたたむ') !== -1 ? '' : 'none'));
-          }
-        });
-      }
-    });
-
-    // 7. 保存とキャンセル
-    document.getElementById('save-btn').addEventListener('click', function() {
-      if (closing) return;
-      var sakaiHost = document.getElementById('sakai-host').value.trim();
-      if (!sakaiHost) {
-        alert('Sakai 接続先ドメインを入力してください。');
-        return;
-      }
-
-      var deadlineDays = parseInt(document.getElementById('default-deadline-days').value, 10);
-      if (isNaN(deadlineDays) || deadlineDays <= 0) {
-        alert('直近締切の取得対象日数を正しく入力してください。');
-        return;
-      }
-
-      var announcementLimit = parseInt(document.getElementById('default-announcement-limit').value, 10);
-      if (isNaN(announcementLimit) || announcementLimit <= 0) {
-        alert('お知らせ取得の最大件数を正しく入力してください。');
-        return;
-      }
-
-      var updatedCourses = [];
-      globalCourses.forEach(function(course) {
-        var selected = document.querySelector('input[name="policy_' + course.id + '"]:checked');
-        var policyVal = selected ? selected.value : course.current_policy;
-        updatedCourses.push({
-          id: course.id,
-          title: course.title,
-          is_favorite: course.is_favorite,
-          current_policy: policyVal
-        });
-      });
-
-      var payload = {
-        sakai_host: sakaiHost,
-        default_deadline_days: deadlineDays,
-        default_announcement_limit: announcementLimit,
-        courses: updatedCourses
-      };
-
-      if (window.pywebview && window.pywebview.api) {
-        setClosing(true);
-        window.pywebview.api.save_settings(payload).catch(handleCloseError);
-      }
-    });
-
-    document.getElementById('cancel-btn').addEventListener('click', function() {
-      if (closing) return;
-      if (window.pywebview && window.pywebview.api) {
-        setClosing(true);
-        window.pywebview.api.close_window().catch(handleCloseError);
-      }
-    });
-
-    window.addEventListener('DOMContentLoaded', init);
-  </script>
+  <svg style="display: none;">
+    <defs>
+      <symbol id="icon-setting" viewBox="0 0 50 50">
+        <path d="M47.16,21.221l-5.91-0.966c-0.346-1.186-0.819-2.326-1.411-3.405l3.45-4.917c0.279-0.397,0.231-0.938-0.112-1.282 l-3.889-3.887c-0.347-0.346-0.893-0.391-1.291-0.104l-4.843,3.481c-1.089-0.602-2.239-1.08-3.432-1.427l-1.031-5.886 C28.607,2.35,28.192,2,27.706,2h-5.5c-0.49,0-0.908,0.355-0.987,0.839l-0.956,5.854c-1.2,0.345-2.352,0.818-3.437,1.412l-4.83-3.45 c-0.399-0.285-0.942-0.239-1.289,0.106L6.82,10.648c-0.343,0.343-0.391,0.883-0.112,1.28l3.399,4.863 c-0.605,1.095-1.087,2.254-1.438,3.46l-5.831,0.971c-0.482,0.08-0.836,0.498-0.836,0.986v5.5c0,0.485,0.348,0.9,0.825,0.985 l5.831,1.034c0.349,1.203,0.831,2.362,1.438,3.46l-3.441,4.813c-0.284,0.397-0.239,0.942,0.106,1.289l3.888,3.891 c0.343,0.343,0.884,0.391,1.281,0.112l4.87-3.411c1.093,0.601,2.248,1.078,3.445,1.424l0.976,5.861C21.3,47.647,21.717,48,22.206,48 h5.5c0.485,0,0.9-0.348,0.984-0.825l1.045-5.89c1.199-0.353,2.348-0.833,3.43-1.435l4.905,3.441 c0.398,0.281,0.938,0.232,1.282-0.111l3.888-3.891c0.346-0.347,0.391-0.894,0.104-1.292l-3.498-4.857 c0.593-1.08,1.064-2.222,1.407-3.408l5.918-1.039c0.479-0.084,0.827-0.5,0.827-0.985v-5.5C47.999,21.718,47.644,21.3,47.16,21.221z M25,32c-3.866,0-7-3.134-7-7c0-3.866,3.134-7,7-7s7,3.134,7,7C32,28.866,28.866,32,25,32z"/>
+      </symbol>
+      <symbol id="icon-web" viewBox="0 0 92 92">
+        <path id="XMLID_1666_" d="M46,0C20.6,0,0,20.6,0,46s20.6,46,46,46s46-20.6,46-46S71.4,0,46,0z M49.7,83.8c-0.2,0-0.4,0-0.7,0.1V62.2
+        c5.2-0.1,9.9-0.2,14.2-0.5C59.4,73.4,52.3,81.2,49.7,83.8z M42.3,83.8c-2.7-2.7-9.7-10.5-13.5-22.1c4.2,0.3,9,0.5,14.2,0.5v21.7
+        C42.8,83.9,42.6,83.8,42.3,83.8z M8,46c0-2.5,0.3-5,0.7-7.4c2.2-0.4,6.4-1,12.3-1.6c-0.5,2.9-0.8,5.9-0.8,9.1c0,3.2,0.3,6.2,0.7,9
+        c-5.8-0.6-10.1-1.2-12.3-1.6C8.3,51,8,48.5,8,46z M26.3,46c0-3.4,0.4-6.6,1-9.6c4.6-0.3,9.8-0.6,15.7-0.6v20.4
+        c-5.8-0.1-11.1-0.3-15.8-0.7C26.7,52.6,26.3,49.4,26.3,46z M49.6,8.2c2.7,2.7,9.6,10.7,13.5,22.1c-4.2-0.3-8.9-0.5-14.1-0.5V8.1
+        C49.2,8.1,49.4,8.2,49.6,8.2z M43,8.1v21.7c-5.2,0.1-9.9,0.2-14.1,0.5c3.8-11.4,10.8-19.4,13.4-22.1C42.6,8.2,42.8,8.1,43,8.1z
+        M49,56.2V35.8c5.8,0.1,11.1,0.3,15.7,0.6c0.6,3,1,6.2,1,9.6c0,3.4-0.3,6.6-0.9,9.6C60.2,55.9,54.9,56.1,49,56.2z M70.9,37
+        c5.9,0.6,10.1,1.2,12.3,1.6C83.7,41,84,43.5,84,46c0,2.5-0.3,5-0.7,7.4c-2.2,0.4-6.4,1-12.3,1.6c0.5-2.9,0.7-5.9,0.7-9.1
+        C71.7,42.9,71.4,39.8,70.9,37z M81.4,32.2c-2.8-0.4-6.8-0.9-11.9-1.4c-2.4-8.6-6.6-15.5-10.1-20.4C69.5,14.2,77.5,22.2,81.4,32.2z
+        M32.6,10.4c-3.6,4.8-7.7,11.7-10.1,20.3c-5,0.4-9,1-11.9,1.4C14.5,22.2,22.6,14.2,32.6,10.4z M10.6,59.8c2.8,0.4,6.8,0.9,11.8,1.4
+        c2.4,8.6,6.4,15.5,10,20.3C22.4,77.6,14.5,69.7,10.6,59.8z M59.6,81.5c3.6-4.8,7.6-11.6,10-20.2c5-0.4,9-1,11.8-1.4
+        C77.5,69.7,69.6,77.6,59.6,81.5z"/>
+      </symbol>
+      <symbol id="icon-security" viewBox="0 0 48 48">
+        <path d="M24,2S6,7.1,6,8V26.2c0,9.2,13.3,17.3,17,19.5a1.8,1.8,0,0,0,2,0c3.8-2.1,17-10.3,17-19.5V8C42,7.1,24,2,24,2Zm9.4,16.4-11,11a1.9,1.9,0,0,1-2.8,0l-4.9-4.9a2.2,2.2,0,0,1-.4-2.7,2,2,0,0,1,3.1-.2L21,25.2l9.6-9.6a2,2,0,0,1,2.8,2.8Z"/>
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M15 10.5C15 12.9853 12.9853 15 10.5 15C8.01472 15 6 12.9853 6 10.5C6 8.01472 8.01472 6 10.5 6C12.9853 6 15 8.01472 15 10.5ZM14.1793 15.2399C13.1632 16.0297 11.8865 16.5 10.5 16.5C7.18629 16.5 4.5 13.8137 4.5 10.5C4.5 7.18629 7.18629 4.5 10.5 4.5C13.8137 4.5 16.5 7.18629 16.5 10.5C16.5 11.8865 16.0297 13.1632 15.2399 14.1792L20.0304 18.9697L18.9697 20.0303L14.1793 15.2399Z" fill="#2b2b2b"/>
+      </symbol>
+      <symbol id="icon-time" viewBox="0 0 24 24">
+        <path d="M23 12C23 18.0751 18.0751 23 12 23C5.92487 23 1 18.0751 1 12C1 5.92487 5.92487 1 12 1C18.0751 1 23 5.92487 23 12ZM3.00683 12C3.00683 16.9668 7.03321 20.9932 12 20.9932C16.9668 20.9932 20.9932 16.9668 20.9932 12C20.9932 7.03321 16.9668 3.00683 12 3.00683C7.03321 3.00683 3.00683 7.03321 3.00683 12Z" fill="#000000"/>
+        <path d="M12 5C11.4477 5 11 5.44771 11 6V12.4667C11 12.4667 11 12.7274 11.1267 12.9235C11.2115 13.0898 11.3437 13.2343 11.5174 13.3346L16.1372 16.0019C16.6155 16.278 17.2271 16.1141 17.5032 15.6358C17.7793 15.1575 17.6155 14.5459 17.1372 14.2698L13 11.8812V6C13 5.44772 12.5523 5 12 5Z" fill="#000000"/>
+      </symbol>
+    </defs>
+  </svg>
 </body>
 </html>
