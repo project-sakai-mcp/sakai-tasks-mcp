@@ -1,24 +1,8 @@
 var globalCourses = [];
 var saveTimer = null;
 
-function setStatus(state, message) {
-  var el = document.getElementById('status-indicator');
-  el.className = 'status-indicator';
-  if (state === 'saving') {
-    el.classList.add('status-saving');
-    el.textContent = message || '⏳ 保存中...';
-  } else if (state === 'error') {
-    el.classList.add('status-error');
-    el.textContent = message || '⚠️ 保存に失敗しました';
-  } else {
-    el.classList.add('status-saved');
-    el.textContent = message || '💾 自動保存済み';
-  }
-}
-
 // 300ms デバウンス自動保存をスケジュール
 function triggerAutoSave() {
-  setStatus('saving', '⏳ 入力を待機中...');
   if (saveTimer) {
     clearTimeout(saveTimer);
   }
@@ -59,15 +43,9 @@ function performSave() {
   };
 
   if (window.pywebview && window.pywebview.api) {
-    setStatus('saving', '⏳ 保存中...');
-    window.pywebview.api.save_settings(payload)
-      .then(function() {
-        setStatus('saved', '💾 自動保存済み');
-      })
-      .catch(function(err) {
-        console.error('Save error:', err);
-        setStatus('error', '⚠️ 保存に失敗しました');
-      });
+    window.pywebview.api.save_settings(payload).catch(function(err) {
+      console.error('Save error:', err);
+    });
   }
 }
 

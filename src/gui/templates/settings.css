@@ -13,27 +13,7 @@ legend {
   font-weight: bold;
   padding: 0 4px;
 }
-.status-container {
-  margin-top: 15px;
-  padding: 10px 14px;
-  background-color: #f8f9fa;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.status-indicator {
-  font-weight: 500;
-  font-size: 14px;
-}
-.status-saved { color: #15803d; }
-.status-saving { color: #d97706; }
-.status-error { color: #b91c1c; }
-.notice-text {
-  font-size: 13px;
-  color: #64748b;
-}
+
 .empty-courses-notice {
   padding: 24px;
   text-align: center;
