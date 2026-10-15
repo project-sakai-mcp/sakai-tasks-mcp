@@ -345,16 +345,29 @@ class SakaiClient:
         Returns:
             list[SakaiTask]: 課題タスクモデル一覧 (task_type=TaskType.ASSIGNMENT)
         """
+
         site_names, site_tool_pages = await self._resolve_site_context(site_id, favorites_only)
-        data = await self._get_json(endpoints.ASSIGNMENT_MY)
-        return parse_assignments(
-            data=data,
-            host=self.host,
-            site_names=site_names,
-            site_tool_pages=site_tool_pages,
-            assignment_id=assignment_id,
-            include_details=include_details,
-        )
+        sem = asyncio.Semaphore(10)
+
+        async def fetch_one(s_id: str, s_name: str, t_pages: dict[str, str]) -> list[SakaiTask]:
+            async with sem:
+                endpoint = endpoints.assignment_site(s_id)
+                data = await self._get_json(endpoint=endpoint, default={})
+                return parse_assignments(
+                    data=data,
+                    host=self.host,
+                    site_names=site_names,
+                    site_tool_pages=site_tool_pages,
+                    assignment_id=assignment_id,
+                    include_details=include_details,
+                )
+
+        tasks = [
+            fetch_one(s_id, s_name, site_tool_pages.get(s_id, {}))
+            for s_id, s_name in site_names.items()
+        ]
+        results = await asyncio.gather(*tasks)
+        return [task for sublist in results for task in sublist]
 
     async def get_quizzes(
         self,
@@ -372,7 +385,7 @@ class SakaiClient:
             list[SakaiTask]: テスト・クイズタスクモデル一覧 (task_type=TaskType.QUIZ)
         """
         site_names, site_tool_pages = await self._resolve_site_context(site_id, favorites_only)
-        sem = asyncio.Semaphore(5)
+        sem = asyncio.Semaphore(10)
 
         async def fetch_one(s_id: str, s_name: str, t_pages: dict[str, str]) -> list[SakaiTask]:
             async with sem:
