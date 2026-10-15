@@ -25,7 +25,6 @@ def test_config_atomic_save(tmp_path, monkeypatch):
         default_deadline_days=14,
         default_announcement_limit=5,
         request_timeout=20.0,
-        cache_ttl=600.0,
     )
 
     Config.save(data)
@@ -100,7 +99,6 @@ def test_settings_api_save_settings(tmp_path, monkeypatch):
         "default_deadline_days": 15,
         "default_announcement_limit": 10,
         "request_timeout": 25.0,
-        "cache_ttl": 400.0,
         "courses": [
             {"id": "c1", "current_policy": "allow_all"}
         ]

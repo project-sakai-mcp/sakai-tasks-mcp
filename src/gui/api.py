@@ -41,7 +41,6 @@ class SettingsApi:
             default_deadline_days=int(data.get("default_deadline_days") or Config.DEFAULT_DEADLINE_DAYS),
             default_announcement_limit=int(data.get("default_announcement_limit") or Config.DEFAULT_ANNOUNCEMENT_LIMIT),
             request_timeout=float(data.get("request_timeout") or Config.REQUEST_TIMEOUT),
-            cache_ttl=float(data.get("cache_ttl") or Config.CACHE_TTL),
         )
         Config.save(app_config)
         return True

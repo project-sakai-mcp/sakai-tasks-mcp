@@ -1190,18 +1190,15 @@ class SakaiClient:
     def __init__(
         self,
         host: str = Config.SAKAI_HOST,
-        timeout: float = Config.REQUEST_TIMEOUT,
-        cache_ttl: float = Config.CACHE_TTL
+        timeout: float = Config.REQUEST_TIMEOUT
     ):
         """
         Args:
             host: Sakai ホスト名 (デフォルト: Config.SAKAI_HOST)
             timeout: HTTP リクエストのタイムアウト秒数 (デフォルト: Config.REQUEST_TIMEOUT)
-            cache_ttl: 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (デフォルト: Config.CACHE_TTL)
         """
         self.host = host
         self.timeout = timeout
-        self.cache_ttl = cache_ttl
         
         self._http_client: httpx.AsyncClient | None = None
         self._client_lock: asyncio.Lock | None = None
@@ -1408,9 +1405,8 @@ class SakaiClient:
         """
         全講義一覧（お気に入りフラグ & tool_pages 付き）を取得する。
         """
-        ttl = 0.0 if force_refresh else self.cache_ttl
-        favorites_task = self._get_json(endpoints.PORTAL_FAVORITES_LIST, ttl=ttl, default={})
-        sites_task = self._get_json(endpoints.SITE_LIST, ttl=ttl)
+        favorites_task = self._get_json(endpoints.PORTAL_FAVORITES_LIST, force_refresh=force_refresh, default={})
+        sites_task = self._get_json(endpoints.SITE_LIST, force_refresh=force_refresh)
         favorites_json, sites_json = await asyncio.gather(favorites_task, sites_task)
 
         fav_site_ids = parse_favorite_site_ids(favorites_json)
@@ -2941,7 +2937,6 @@ def check_download_allowed_by_url(url: str) -> None:
 | 設定キー / 定数名 | 型 | デフォルト値 | 管理形式 | 説明 |
 | :--- | :--- | :--- | :--- | :--- |
 | **`request_timeout`** | `float` | `15.0` | `config.json` 保存 | Sakai API 通常 HTTP 通信のタイムアウト秒数 |
-| **`cache_ttl`** | `float` | `300.0` | `config.json` 保存 | 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (5分) |
 | **`auth_cooldown_seconds`** | `float` | `3.0` | 内部固定定数 | 認証キャンセル・失敗直後の画面連打防止クールダウン秒数 |
 | **`session_check_timeout`** | `float` | `5.0` | 内部固定定数 | セッション確認 API (`/session/current.json`) タイムアウト秒数 |
 | **`webview_auto_timeout`** | `float` | `5.0` | 内部固定定数 | WebView 画面を非表示のまま自動素通りを試みる猶予秒数 |
@@ -3001,7 +2996,6 @@ class AppConfigData(BaseModel):
     default_deadline_days: int = 30
     default_announcement_limit: int = 7
     request_timeout: float = 15.0
-    cache_ttl: float = 300.0
 
 
 # ==============================================================================
@@ -3041,7 +3035,6 @@ class Config:
     DEFAULT_DEADLINE_DAYS: int = 30
     DEFAULT_ANNOUNCEMENT_LIMIT: int = 7
     REQUEST_TIMEOUT: float = 15.0
-    CACHE_TTL: float = 300.0
     POLICIES: dict[str, AIPolicyMode] = {}
 
     # 3. 内部状態 (mtime ベースの自動再読込用)
@@ -3056,7 +3049,6 @@ class Config:
         cls.DEFAULT_DEADLINE_DAYS = data.default_deadline_days
         cls.DEFAULT_ANNOUNCEMENT_LIMIT = data.default_announcement_limit
         cls.REQUEST_TIMEOUT = data.request_timeout
-        cls.CACHE_TTL = data.cache_ttl
 
     @classmethod
     def check_and_reload(cls) -> None:
@@ -3115,7 +3107,6 @@ class Config:
                 default_deadline_days=cls.DEFAULT_DEADLINE_DAYS,
                 default_announcement_limit=cls.DEFAULT_ANNOUNCEMENT_LIMIT,
                 request_timeout=cls.REQUEST_TIMEOUT,
-                cache_ttl=cls.CACHE_TTL,
             )
         with open(cls.CONFIG_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(data.model_dump_json(indent=2))
@@ -3325,7 +3316,6 @@ class SettingsApi:
             default_deadline_days=int(data.get("default_deadline_days", Config.DEFAULT_DEADLINE_DAYS)),
             default_announcement_limit=int(data.get("default_announcement_limit", Config.DEFAULT_ANNOUNCEMENT_LIMIT)),
             request_timeout=float(data.get("request_timeout", Config.REQUEST_TIMEOUT)),
-            cache_ttl=float(data.get("cache_ttl", Config.CACHE_TTL)),
         )
         Config.save(app_config)
         if self._window:

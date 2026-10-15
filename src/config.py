@@ -31,7 +31,6 @@ class AppConfigData(BaseModel):
     default_deadline_days: int = 30
     default_announcement_limit: int = 7
     request_timeout: float = 15.0
-    cache_ttl: float = 300.0
 
 
 # ==============================================================================
@@ -71,7 +70,6 @@ class Config:
     DEFAULT_DEADLINE_DAYS: int = 30
     DEFAULT_ANNOUNCEMENT_LIMIT: int = 7
     REQUEST_TIMEOUT: float = 15.0
-    CACHE_TTL: float = 300.0
     POLICIES: dict[str, AIPolicyMode] = {}
 
     # 3. 内部状態 (mtime ベースの自動再読込用)
@@ -86,7 +84,6 @@ class Config:
         cls.DEFAULT_DEADLINE_DAYS = data.default_deadline_days
         cls.DEFAULT_ANNOUNCEMENT_LIMIT = data.default_announcement_limit
         cls.REQUEST_TIMEOUT = data.request_timeout
-        cls.CACHE_TTL = data.cache_ttl
 
     @classmethod
     def check_and_reload(cls) -> None:
@@ -145,7 +142,6 @@ class Config:
                 default_deadline_days=cls.DEFAULT_DEADLINE_DAYS,
                 default_announcement_limit=cls.DEFAULT_ANNOUNCEMENT_LIMIT,
                 request_timeout=cls.REQUEST_TIMEOUT,
-                cache_ttl=cls.CACHE_TTL,
             )
 
         content = data.model_dump_json(indent=2)

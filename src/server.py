@@ -100,7 +100,7 @@ def get_client() -> SakaiClient:
         )
 
     if _client is None or _client.host != Config.SAKAI_HOST:
-        _client = SakaiClient(host=Config.SAKAI_HOST, timeout=Config.REQUEST_TIMEOUT, cache_ttl=Config.CACHE_TTL)
+        _client = SakaiClient(host=Config.SAKAI_HOST, timeout=Config.REQUEST_TIMEOUT)
     return _client
 
 

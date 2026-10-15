@@ -39,17 +39,14 @@ class SakaiClient:
         self,
         host: str | None = None,
         timeout: float | None = None,
-        cache_ttl: float | None = None,
     ):
         """
         Args:
             host: Sakai ホスト名 (未指定時は Config.SAKAI_HOST)
             timeout: HTTP リクエストのタイムアウト秒数 (未指定時は Config.REQUEST_TIMEOUT)
-            cache_ttl: 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (未指定時は Config.CACHE_TTL)
         """
         self.host = host or Config.SAKAI_HOST
         self.timeout = timeout if timeout is not None else Config.REQUEST_TIMEOUT
-        self.cache_ttl = cache_ttl if cache_ttl is not None else Config.CACHE_TTL
 
         self._http_client: httpx.AsyncClient | None = None
         self._client_lock: asyncio.Lock | None = None
@@ -162,12 +159,25 @@ class SakaiClient:
             return True
         return False
 
+    def _resolve_ttl(
+        self,
+        endpoint: str,
+        force_refresh: bool = False,
+    ) -> float:
+        """エンドポイントに応じた適用 TTL (秒) を解決する。"""
+        if force_refresh:
+            return 0.0
+        for pattern, ttl in endpoints.ENDPOINT_CACHE_TTL_MAP.items():
+            if pattern == endpoint or pattern in endpoint:
+                return ttl
+        return endpoints.DEFAULT_CACHE_TTL
+
     async def _fetch(
         self,
         method: str,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        ttl: float = 0.0,
+        force_refresh: bool = False,
         as_json: bool = True,
         default: Any = None,
     ) -> Any:
@@ -179,13 +189,14 @@ class SakaiClient:
         param_key = tuple(sorted(params.items())) if params else ()
         cache_key = f"{'JSON' if as_json else 'TEXT'}:{method}:{endpoint}:{param_key}"
         now = time.monotonic()
+        resolved_ttl = self._resolve_ttl(endpoint, force_refresh=force_refresh)
 
         # 1. キャッシュの確認 (有効期限内なら即返却)
-        if ttl > 0:
+        if resolved_ttl > 0:
             async with self._get_cache_lock():
                 if cache_key in self._response_cache:
                     data, cached_at = self._response_cache[cache_key]
-                    if now - cached_at < ttl:
+                    if now - cached_at < resolved_ttl:
                         return data
 
         # 2. 通信中リクエストの多重防止 (先行タスクの完了をロック外で待機)
@@ -208,7 +219,7 @@ class SakaiClient:
             result = resp.json() if as_json else resp.text
 
             # キャッシュ保存
-            if ttl > 0:
+            if resolved_ttl > 0:
                 async with self._get_cache_lock():
                     self._response_cache[cache_key] = (result, time.monotonic())
 
@@ -252,29 +263,28 @@ class SakaiClient:
         self,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        ttl: float = 0.0,
+        force_refresh: bool = False,
         default: Any = None,
     ) -> dict[str, Any]:
         """JSON レスポンスを取得する。"""
-        return await self._fetch("GET", endpoint, params=params, ttl=ttl, as_json=True, default=default)
+        return await self._fetch("GET", endpoint, params=params, force_refresh=force_refresh, as_json=True, default=default)
 
     async def _get_text(
         self,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        ttl: float = 0.0,
+        force_refresh: bool = False,
         default: Any = None,
     ) -> str:
         """HTML / テキストレスポンスを取得する。"""
-        return await self._fetch("GET", endpoint, params=params, ttl=ttl, as_json=False, default=default)
+        return await self._fetch("GET", endpoint, params=params, force_refresh=force_refresh, as_json=False, default=default)
 
     async def _get_all_courses_cached(self, force_refresh: bool = False) -> list[CourseSite]:
         """
         全講義一覧（お気に入りフラグ & tool_pages 付き）を取得する。
         """
-        ttl = 0.0 if force_refresh else self.cache_ttl
-        favorites_task = self._get_json(endpoints.PORTAL_FAVORITES_LIST, ttl=ttl, default={})
-        sites_task = self._get_json(endpoints.SITE_LIST, ttl=ttl)
+        favorites_task = self._get_json(endpoints.PORTAL_FAVORITES_LIST, force_refresh=force_refresh, default={})
+        sites_task = self._get_json(endpoints.SITE_LIST, force_refresh=force_refresh)
         favorites_json, sites_json = await asyncio.gather(favorites_task, sites_task)
 
         fav_courses = parse_favorite_courses(favorites_json, self.host)
