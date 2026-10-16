@@ -4,6 +4,7 @@
     なくても動くので一回未実装のまま置いておいてあとで調整する方針を採用しました。
 """
 import time
+from http.cookies import BaseCookie, Morsel
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -16,17 +17,26 @@ def authenticate_via_webview(
     host: str | None = None,
     profile_dir: Path = Config.WEBVIEW_DATA_DIR,
     initial_cookies: list[dict[str, Any]] | None = None,
-    auto_timeout_seconds: float = Config.WEBVIEW_AUTO_TIMEOUT,
+    pause_duration_seconds: float = Config.WEBVIEW_URL_PAUSE_DURATION,
+    auto_timeout_seconds: float | None = None,
 ) -> list[dict[str, Any]]:
     """
     WebView を起動して Sakai のログインを行い、
     ログイン成功時の Cookie 一覧を返す。
+
+    Args:
+        host: Sakai ホスト名 (デフォルト: Config.SAKAI_HOST)
+        profile_dir: 永続プロファイル保存ディレクトリ
+        initial_cookies: 事前 Cookie
+        pause_duration_seconds: URL 静止判定によるログイン画面表示猶予秒数 (秒)
+        auto_timeout_seconds: 旧パラメータ互換用 (指定された場合は pause_duration_seconds より優先)
 
     Returns:
         list[dict[str, Any]]:
             ログイン成功時は Cookie 一覧。
             ユーザー中断・タイムアウト・取得失敗時は []。
     """
+    pause_limit = auto_timeout_seconds if auto_timeout_seconds is not None else pause_duration_seconds
     host = host or Config.SAKAI_HOST
     cookies_result: list[dict[str, Any]] = []
 
@@ -73,8 +83,8 @@ def authenticate_via_webview(
 
         items = raw_cookies if isinstance(raw_cookies, list) else [raw_cookies]
         for item in items:
-            # 1. http.cookies.SimpleCookie (辞書ライク: {name: Morsel})
-            if hasattr(item, "items") and callable(getattr(item, "items")):
+            # 1. BaseCookie (SimpleCookie) の場合
+            if isinstance(item, BaseCookie):
                 for name, morsel in item.items():
                     try:
                         result.append(
@@ -90,7 +100,7 @@ def authenticate_via_webview(
                     except Exception:
                         continue
             # 2. Morsel 単体の場合
-            elif hasattr(item, "key") and hasattr(item, "value"):
+            elif isinstance(item, Morsel) or (hasattr(item, "key") and hasattr(item, "value")):
                 try:
                     result.append(
                         {
@@ -104,18 +114,35 @@ def authenticate_via_webview(
                     )
                 except Exception:
                     continue
-            # 3. dict の場合
+            # 3. dict の場合 (pywebview が返す Cookie 辞書: {"name": ..., "value": ...})
             elif isinstance(item, dict):
-                result.append(
-                    {
-                        "name": item.get("name", ""),
-                        "value": item.get("value", ""),
-                        "domain": item.get("domain", ""),
-                        "path": item.get("path", "/"),
-                        "httponly": bool(item.get("httponly", False)),
-                        "secure": bool(item.get("secure", False)),
-                    }
-                )
+                if "name" in item and "value" in item:
+                    result.append(
+                        {
+                            "name": item.get("name", ""),
+                            "value": item.get("value", ""),
+                            "domain": item.get("domain", ""),
+                            "path": item.get("path", "/"),
+                            "httponly": bool(item.get("httponly", False)),
+                            "secure": bool(item.get("secure", False)),
+                        }
+                    )
+                elif hasattr(item, "items") and callable(getattr(item, "items")):
+                    # {cookie_name: morsel} のような辞書ライク構造
+                    for name, morsel in item.items():
+                        try:
+                            result.append(
+                                {
+                                    "name": name,
+                                    "value": morsel.value if hasattr(morsel, "value") else str(morsel),
+                                    "domain": morsel["domain"] if hasattr(morsel, "__getitem__") and "domain" in morsel else "",
+                                    "path": morsel["path"] if hasattr(morsel, "__getitem__") and "path" in morsel else "/",
+                                    "httponly": bool(morsel["httponly"]) if hasattr(morsel, "__getitem__") and "httponly" in morsel else False,
+                                    "secure": bool(morsel["secure"]) if hasattr(morsel, "__getitem__") and "secure" in morsel else False,
+                                }
+                            )
+                        except Exception:
+                            continue
 
         return result
 
@@ -126,10 +153,14 @@ def authenticate_via_webview(
         shown = False
         retried_stale = False
 
+        last_url: str | None = None
+        last_url_changed_at = time.monotonic()
+
         while True:
             time.sleep(0.2)
 
-            elapsed = time.monotonic() - started_at
+            now = time.monotonic()
+            elapsed = now - started_at
 
             try:
                 url = window.get_current_url() or ""
@@ -169,18 +200,25 @@ def authenticate_via_webview(
                 except Exception:
                     return
 
+                last_url = None
+                last_url_changed_at = time.monotonic()
                 continue
 
-            # 3. 自動ログインできなければ画面表示
-            if (
-                elapsed >= auto_timeout_seconds
-                and not shown
-            ):
-                try:
-                    window.show()
-                    shown = True
-                except Exception:
-                    return
+            # 3. URL 変化監視 & 静止判定による画面表示
+            if url:
+                if url != last_url:
+                    last_url = url
+                    last_url_changed_at = now
+                elif not shown:
+                    pause_duration = now - last_url_changed_at
+                    if pause_duration >= pause_limit:
+                        try:
+                            window.show()
+                            shown = True
+                        except Exception:
+                            return
+            else:
+                last_url_changed_at = now
 
             # 4. 最大待機時間
             if elapsed >= Config.AUTH_MAX_TIMEOUT:
