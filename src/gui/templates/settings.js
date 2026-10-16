@@ -23,6 +23,11 @@ function performSave() {
     announcementLimit = 7;
   }
 
+  var requestTimeout = parseFloat(document.getElementById('request-timeout').value);
+  if (isNaN(requestTimeout) || requestTimeout <= 0) {
+    requestTimeout = 30.0;
+  }
+
   var updatedCourses = [];
   globalCourses.forEach(function(course) {
     updatedCourses.push({
@@ -37,6 +42,7 @@ function performSave() {
     sakai_host: sakaiHost,
     default_deadline_days: deadlineDays,
     default_announcement_limit: announcementLimit,
+    request_timeout: requestTimeout,
     courses: updatedCourses
   };
 
@@ -139,6 +145,11 @@ function renderUI(data) {
   announcementLimitInput.value = data.default_announcement_limit;
   announcementLimitInput.addEventListener('input', triggerAutoSave);
   announcementLimitInput.addEventListener('change', triggerAutoSave);
+
+  var requestTimeoutInput = document.getElementById('request-timeout');
+  requestTimeoutInput.value = data.request_timeout || 30.0;
+  requestTimeoutInput.addEventListener('input', triggerAutoSave);
+  requestTimeoutInput.addEventListener('change', triggerAutoSave);
 
   // 5. 講義一覧 (お気に入りとその他に分離)
   globalCourses = data.courses || [];

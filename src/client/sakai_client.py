@@ -10,6 +10,7 @@ import httpx
 from src.config import Config
 from src.auth import get_valid_cookies
 from src.client import endpoints
+from src.client.exceptions import SakaiTimeoutError
 from src.client.parsers.favorite_parser import parse_favorite_courses
 from src.client.parsers.course_parser import parse_courses
 from src.client.parsers.assignment_parser import parse_assignments
@@ -215,6 +216,16 @@ class SakaiClient:
             if not fut.done():
                 fut.set_result(result)
             return result
+        except httpx.TimeoutException as e:
+            msg = (
+                f"Request to Sakai LMS timed out after {self.timeout}s: {method} {endpoint}. "
+                f"The server may be overloaded or responding slowly."
+            )
+            logger.warning(msg)
+            err = SakaiTimeoutError(msg, timeout=self.timeout)
+            if not fut.done():
+                fut.set_exception(err)
+            raise err from e
         except httpx.HTTPStatusError as e:
             if default is not None:
                 logger.warning(
@@ -356,8 +367,8 @@ class SakaiClient:
                 return parse_assignments(
                     data=data,
                     host=self.host,
-                    site_names=site_names,
-                    site_tool_pages=site_tool_pages,
+                    site_names={s_id: s_name},
+                    site_tool_pages={s_id: t_pages},
                     assignment_id=assignment_id,
                     include_details=include_details,
                 )
@@ -366,8 +377,30 @@ class SakaiClient:
             fetch_one(s_id, s_name, site_tool_pages.get(s_id, {}))
             for s_id, s_name in site_names.items()
         ]
-        results = await asyncio.gather(*tasks)
-        return [task for sublist in results for task in sublist]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_tasks: list[SakaiTask] = []
+        timeout_sites: list[str] = []
+
+        for (s_id, s_name), res in zip(site_names.items(), results):
+            if isinstance(res, (httpx.TimeoutException, SakaiTimeoutError)):
+                timeout_sites.append(f"'{s_name}' ({s_id})")
+            elif isinstance(res, Exception):
+                logger.warning(f"Error fetching assignments for site '{s_name}' ({s_id}): {res}")
+            else:
+                all_tasks.extend(res)
+
+        if timeout_sites:
+            failed_str = ", ".join(timeout_sites)
+            raise SakaiTimeoutError(
+                f"Request to Sakai LMS timed out ({self.timeout}s) while fetching assignments for course(s): [{failed_str}]. "
+                f"The server may be overloaded. Please try again later, increase the request timeout in settings (`open_settings`), "
+                f"or request with a specific site_id.",
+                timeout=self.timeout,
+                failed_sites=timeout_sites,
+            )
+
+        return all_tasks
 
     async def get_quizzes(
         self,
@@ -398,8 +431,30 @@ class SakaiClient:
             fetch_one(s_id, s_name, site_tool_pages.get(s_id, {}))
             for s_id, s_name in site_names.items()
         ]
-        results = await asyncio.gather(*tasks)
-        return [task for sublist in results for task in sublist]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_tasks: list[SakaiTask] = []
+        timeout_sites: list[str] = []
+
+        for (s_id, s_name), res in zip(site_names.items(), results):
+            if isinstance(res, (httpx.TimeoutException, SakaiTimeoutError)):
+                timeout_sites.append(f"'{s_name}' ({s_id})")
+            elif isinstance(res, Exception):
+                logger.warning(f"Error fetching quizzes for site '{s_name}' ({s_id}): {res}")
+            else:
+                all_tasks.extend(res)
+
+        if timeout_sites:
+            failed_str = ", ".join(timeout_sites)
+            raise SakaiTimeoutError(
+                f"Request to Sakai LMS timed out ({self.timeout}s) while fetching quizzes for course(s): [{failed_str}]. "
+                f"The server may be overloaded. Please try again later, increase the request timeout in settings (`open_settings`), "
+                f"or request with a specific site_id.",
+                timeout=self.timeout,
+                failed_sites=timeout_sites,
+            )
+
+        return all_tasks
 
     async def get_announcements(
         self,

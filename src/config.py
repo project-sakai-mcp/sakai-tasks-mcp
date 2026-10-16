@@ -30,7 +30,7 @@ class AppConfigData(BaseModel):
     policies: dict[str, AIPolicyMode] = Field(default_factory=dict)
     default_deadline_days: int = 30
     default_announcement_limit: int = 7
-    request_timeout: float = 15.0
+    request_timeout: float = 30.0
     cache_ttl: float = 300.0
 
 
@@ -70,7 +70,7 @@ class Config:
     SAKAI_HOST: str = ""
     DEFAULT_DEADLINE_DAYS: int = 30
     DEFAULT_ANNOUNCEMENT_LIMIT: int = 7
-    REQUEST_TIMEOUT: float = 15.0
+    REQUEST_TIMEOUT: float = 30.0
     CACHE_TTL: float = 300.0
     POLICIES: dict[str, AIPolicyMode] = {}
 
