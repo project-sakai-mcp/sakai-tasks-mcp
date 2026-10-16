@@ -97,7 +97,7 @@
       </svg>
       <h3>詳細パラメータ</h3>
     </div>
-    <p class="section-desc">締切の対象日数やお知らせの最大取得件数を調整します</p>
+    <p class="section-desc">締切の対象日数やお知らせの最大取得件数、通信タイムアウト時間を調整します</p>
 
     <div class="params-container">
       <div class="param-row">
@@ -112,6 +112,13 @@
         <div class="param-input-group">
           <input type="number" id="default-announcement-limit" min="1" max="100">
           <span class="param-unit">件</span>
+        </div>
+      </div>
+      <div class="param-row">
+        <label for="request-timeout">リクエストタイムアウト時間</label>
+        <div class="param-input-group">
+          <input type="number" id="request-timeout" min="5" max="300" step="1">
+          <span class="param-unit">秒</span>
         </div>
       </div>
     </div>

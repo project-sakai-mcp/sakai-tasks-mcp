@@ -20,6 +20,7 @@ class SettingsUIData(BaseModel):
     presets: dict[str, str]          # 大学ドメインプリセット一覧
     default_deadline_days: int       # 直近締切の取得対象日数 (デフォルト 30)
     default_announcement_limit: int  # お知らせ取得の最大件数 (デフォルト 7)
+    request_timeout: float = 30.0    # 通信タイムアウト秒数 (デフォルト 30.0)
     courses: list[CourseSettingItem] # 講義一覧 (お気に入り優先順)
 
 
@@ -39,6 +40,7 @@ async def build_settings_ui_data() -> SettingsUIData:
             presets=Config.UNIVERSITY_PRESETS,
             default_deadline_days=config.default_deadline_days,
             default_announcement_limit=config.default_announcement_limit,
+            request_timeout=config.request_timeout,
             courses=[],
         )
 
@@ -66,5 +68,6 @@ async def build_settings_ui_data() -> SettingsUIData:
         presets=Config.UNIVERSITY_PRESETS,
         default_deadline_days=config.default_deadline_days,
         default_announcement_limit=config.default_announcement_limit,
+        request_timeout=config.request_timeout,
         courses=course_items,
     )
