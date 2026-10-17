@@ -160,11 +160,20 @@ def authenticate_via_webview(
         while True:
             time.sleep(0.2)
 
+            # ユーザーがウィンドウを閉じたか検知 (pywebview イベント)
+            closed_event = getattr(getattr(window, "events", None), "closed", None)
+            if closed_event and hasattr(closed_event, "is_set") and closed_event.is_set() is True:
+                return
+
             now = time.monotonic()
             elapsed = now - started_at
 
             try:
-                url = window.get_current_url() or ""
+                raw_url = window.get_current_url()
+                if raw_url is None and shown:
+                    # ウィンドウ表示後に None が返る場合、ウィンドウが破棄されたと判定
+                    return
+                url = raw_url or ""
             except Exception:
                 # ユーザーがウィンドウを閉じた場合など
                 return
