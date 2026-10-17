@@ -3043,10 +3043,10 @@ class Config:
     DEFAULT_POLICY: AIPolicyMode = AIPolicyMode.TEXT_ONLY  # デフォルトポリシー (強: ファイルDL禁止)
 
     UNIVERSITY_PRESETS: dict[str, str] = {
-        "名古屋大学 (TACT)": "tact.ac.thers.ac.jp",
-        "京都大学 (PandA)": "panda.ecs.kyoto-u.ac.jp",
-        "岡山大学 (Moodle/Sakai)": "sakai.okayama-u.ac.jp",
-        "法政大学 (学習支援システム)": "hoppii.hosei.ac.jp",
+        "名古屋大学": "tact.ac.thers.ac.jp",
+        "京都大学": "panda.ecs.kyoto-u.ac.jp",
+        "東京農工大学": "lms.sirius.tuat.ac.jp",
+        "東京都立大学": "kibaco.tmu.ac.jp",
     }
 
     # 2. 動的ユーザー設定値 (実行中に随時同期される)
@@ -3264,10 +3264,10 @@ async def build_settings_ui_data() -> SettingsUIData:
 {
   "sakai_host": "tact.ac.thers.ac.jp",
   "presets": {
-    "名古屋大学 (TACT)": "tact.ac.thers.ac.jp",
-    "京都大学 (PandA)": "panda.ecs.kyoto-u.ac.jp",
-    "岡山大学 (Moodle/Sakai)": "sakai.okayama-u.ac.jp",
-    "法政大学 (学習支援システム)": "hoppii.hosei.ac.jp"
+    "名古屋大学": "tact.ac.thers.ac.jp",
+    "京都大学": "panda.ecs.kyoto-u.ac.jp",
+    "東京農工大学": "lms.sirius.tuat.ac.jp",
+    "東京都立大学": "kibaco.tmu.ac.jp"
   },
   "default_deadline_days": 30,
   "default_announcement_limit": 7,
