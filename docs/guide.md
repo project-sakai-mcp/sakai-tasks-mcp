@@ -455,20 +455,18 @@ AI クライアントの設定ファイル（例: `claude_desktop_config.json`�
 
 ### 6.1 開発環境セットアップ
 
-前提条件: **Python 3.10 以上**
+前提条件: **Python 3.12 以上**, **[uv](https://astral.sh/uv)**
 
 ```bash
 # 1. リポジトリのクローンと移動
 git clone https://github.com/project-sakai-mcp/sakai-tasks-mcp.git
 cd sakai-tasks-mcp
 
-# 2. 仮想環境の作成と有効化
-python -m venv .venv
-source .venv/bin/activate   # Windows (PowerShell): .\.venv\Scripts\Activate.ps1
-                            # Windows (cmd): .\.venv\Scripts\activate.bat
+# 2. 仮想環境の作成と依存関係の同期 (開発・テストツール含む)
+uv sync
 
-# 3. 依存パッケージのインストール
-pip install -r requirements.txt
+# 3. テストの実行
+uv run pytest
 ```
 
 #### ブランチ運用ルール

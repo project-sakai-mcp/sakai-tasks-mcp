@@ -283,7 +283,8 @@ sakai-tasks-mcp/
 │   ├── build_pyinstaller.py              # テスト用 PyInstaller 単一 exe ビルド
 │   ├── run.bat                           # Windows 用 MCP 起動スクリプト (stdio 中継)
 │   └── run.sh                            # macOS/Linux 用 MCP 起動スクリプト (stdio 中継)
-├── requirements.txt                      # 依存パッケージ定義
+├── pyproject.toml                        # プロジェクトメタデータ＆依存関係定義 (uv 準拠)
+├── uv.lock                               # 依存関係ロックファイル
 ├── AGENTS.md                             # AI・開発者向けコンテキスト共有
 └── README.md                             # プロジェクト概要
 ```

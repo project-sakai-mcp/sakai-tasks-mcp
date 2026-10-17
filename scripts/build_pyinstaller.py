@@ -33,6 +33,12 @@ def get_pyinstaller_command() -> list[str]:
         "pywebview.platforms.winforms",
         "--hidden-import",
         "clr",
+        "--exclude-module",
+        "pytest",
+        "--exclude-module",
+        "unittest",
+        "--exclude-module",
+        "tkinter",
         str(SERVER_SCRIPT.relative_to(ROOT_DIR)),
     ]
     return cmd
