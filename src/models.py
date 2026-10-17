@@ -5,141 +5,142 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class TaskType(str, Enum):
-    """タスク種別"""
-    ASSIGNMENT = "assignment"  # 通常の提出課題 (/direct/assignment)
-    QUIZ = "quiz"              # 小テスト・オンラインテスト (/direct/sam_pub)
+    """Task type"""
+    ASSIGNMENT = "assignment"  # Standard assignment (/direct/assignment)
+    QUIZ = "quiz"              # Quiz or assessment (/direct/sam_pub)
 
 
 class TaskStatus(str, Enum):
-    """タスクの進行状態"""
-    OPEN = "open"              # 受付中 (未提出)
-    SUBMITTED = "submitted"    # 提出済み
-    CLOSED = "closed"          # 締切終了
+    """Task progress status"""
+    OPEN = "open"              # Open / pending submission
+    SUBMITTED = "submitted"    # Submitted
+    CLOSED = "closed"          # Closed / deadline passed
 
 
 class MaterialType(str, Enum):
-    """授業資料アイテム種別"""
-    FILE = "file"              # ダウンロード可能なファイル
-    FOLDER = "folder"          # フォルダ (コレクション)
+    """Course material item type"""
+    FILE = "file"              # Downloadable file
+    FOLDER = "folder"          # Folder (collection)
 
 
 class BaseModelConfig(BaseModel):
-    """全モデル共通の基底クラス (防御的パースと日時シリアライズ設定)"""
+    """Base class for all models with defensive parsing and datetime serialization settings."""
     model_config = ConfigDict(
-        extra="ignore",            # 未知のフィールドを無視して安全にパース
-        populate_by_name=True,    # エイリアス名での代入を許容
-        use_enum_values=True      # JSON 出力時に Enum 値 (文字列) を直接出力
+        extra="ignore",            # Ignore unknown fields for safe parsing
+        populate_by_name=True,    # Allow assignment by alias name
+        use_enum_values=True      # Output enum values (strings) directly in JSON serialization
     )
 
-# AI が各フィールドの意味を正確に解釈できるよう Field(description="...") を付与
+# Field(description="...") attached so AI can accurately understand each field schema
+
 
 class Attachment(BaseModelConfig):
-    """課題やお知らせに添付されたファイル情報"""
-    id: str = Field(description="添付ファイル ID")
-    name: str = Field(description="ファイル名 (拡張子含む)")
-    url: str | None = Field(default=None, description="ダウンロード用 URL (TEXT_ONLY / SCHEDULE_ONLY 時は None にマスク)")
-    size_bytes: int | None = Field(default=None, description="ファイルサイズ (バイト単位)")
-    content_type: str | None = Field(default=None, description="MIME タイプ (例: application/pdf)")
+    """Attachment file information for assignments or announcements."""
+    id: str = Field(description="Attachment ID")
+    name: str = Field(description="Filename including extension")
+    url: str | None = Field(default=None, description="Download URL (masked to None under TEXT_ONLY / SCHEDULE_ONLY)")
+    size_bytes: int | None = Field(default=None, description="File size in bytes")
+    content_type: str | None = Field(default=None, description="MIME type (e.g., application/pdf)")
 
 
 class CourseSite(BaseModelConfig):
-    """履修・所属している講義サイト情報"""
-    id: str = Field(description="講義サイト ID (例: 2024_01_1234567)")
-    name: str = Field(description="講義名 / サイトタイトル")
-    is_favorite: bool = Field(default=False, description="トップバーにお気に入り登録されているか")
-    site_url: str | None = Field(default=None, description="Sakai ポータル上の講義トップページ URL")
+    """Enrolled or joined course site information."""
+    id: str = Field(description="Course site ID (e.g., 2024_01_1234567)")
+    name: str = Field(description="Course name")
+    is_favorite: bool = Field(default=False, description="Whether the course is bookmarked in the top bar favorites")
+    site_url: str | None = Field(default=None, description="Course top page URL")
     tool_pages: dict[str, str] = Field(
         default_factory=dict,
-        description="講義内の各ツールへの直通 URL マッピング (例: {'assignment': '...', 'quiz': '...', 'resource': '...'})"
+        description="Direct URL mapping for tools within the course (e.g., {'assignment': '...', 'quiz': '...', 'resource': '...'})"
     )
-    description: str | None = Field(default=None, description="講義の説明文 / シラバス概要")
+    description: str | None = Field(default=None, description="Course description / syllabus overview")
 
 
 class SakaiTask(BaseModelConfig):
     """
-    課題および小テストを共通フォーマットで表現する統合タスクモデル。
-    AI アシスタントが締切管理や課題解答を行うための中心エンティティ。
+    Unified task model representing both assignments and quizzes in a common format.
+    Core entity used by AI assistant for deadline tracking and task handling.
     """
-    id: str = Field(description="タスク一意 ID (課題 ID または テスト公開 ID)")
-    title: str = Field(description="課題 / テストのタイトル")
-    task_type: TaskType = Field(description="タスク種別 (assignment / quiz)")
-    site_id: str = Field(description="所属する講義サイト ID")
-    site_name: str = Field(description="所属する講義名")
-    due_date: datetime | None = Field(default=None, description="締切日時 (UTC/JST タイムゾーン付き)")
-    open_date: datetime | None = Field(default=None, description="受付開始日時")
-    close_date: datetime | None = Field(default=None, description="最終受付終了日時 (遅延提出締切等)")
-    is_submitted: bool = Field(default=False, description="提出済みフラグ (※小テストは Sakai SAMIGO API の制約上、学生別の受験完了フラグが取得できないため原則未受験判定となります)")
-    status: TaskStatus = Field(default=TaskStatus.OPEN, description="タスク進行状態 (open / submitted / closed)")
-    url: str | None = Field(default=None, description="Sakai 上の課題/テスト直通 Web 画面 URL")
-    site_url: str | None = Field(default=None, description="所属講義トップページ URL")
-    instructions: str | None = Field(default=None, description="課題の指示文 / テストの説明 (HTML 除去済みテキスト)")
-    attachments: list[Attachment] = Field(default_factory=list, description="課題に付属する添付ファイル一覧")
-    max_points: float | None = Field(default=None, description="満点配点 (設定されている場合)")
-    time_limit_seconds: int | None = Field(default=None, description="制限時間秒数 (小テスト等の場合)")
+    id: str = Field(description="Unique task ID (assignment ID or published assessment ID)")
+    title: str = Field(description="Assignment / quiz title")
+    task_type: TaskType = Field(description="Task type (assignment / quiz)")
+    site_id: str = Field(description="Course site ID")
+    site_name: str = Field(description="Course name")
+    due_date: datetime | None = Field(default=None, description="Due date and time (with UTC/JST timezone)")
+    open_date: datetime | None = Field(default=None, description="Opening date and time")
+    close_date: datetime | None = Field(default=None, description="Final closing date and time (late submission deadline, etc.)")
+    is_submitted: bool = Field(default=False, description="Submission flag (Note: Quizzes are marked unsubmitted by default due to Sakai SAMIGO API constraints preventing per-student completion checks)")
+    status: TaskStatus = Field(default=TaskStatus.OPEN, description="Task progress status (open / submitted / closed)")
+    url: str | None = Field(default=None, description="Web URL")
+    site_url: str | None = Field(default=None, description="Course top page URL")
+    instructions: str | None = Field(default=None, description="Task instructions / quiz description (HTML stripped)")
+    attachments: list[Attachment] = Field(default_factory=list, description="List of attachments accompanying the task")
+    max_points: float | None = Field(default=None, description="Maximum points/score (if configured)")
+    time_limit_seconds: int | None = Field(default=None, description="Time limit in seconds (for quizzes, etc.)")
 
 
 class Announcement(BaseModelConfig):
-    """講義またはシステムからのお知らせ・連絡事項"""
-    id: str = Field(description="お知らせ ID")
-    title: str = Field(description="お知らせタイトル")
-    content: str | None = Field(default=None, description="お知らせ本文 (HTML 除去済みテキスト)")
-    published_at: datetime | None = Field(default=None, description="公開日時")
-    created_by: str | None = Field(default=None, description="発信者名 (教員名等)")
-    site_id: str = Field(description="所属する講義サイト ID")
-    site_name: str = Field(description="所属する講義名")
-    url: str | None = Field(default=None, description="Sakai 上のお知らせ直通 Web 画面 URL")
-    attachments: list[Attachment] = Field(default_factory=list, description="お知らせに添付されたファイル一覧")
+    """Course or system announcement / notice."""
+    id: str = Field(description="Announcement ID")
+    title: str = Field(description="Announcement title")
+    content: str | None = Field(default=None, description="Announcement body content (HTML stripped)")
+    published_at: datetime | None = Field(default=None, description="Publication date and time")
+    created_by: str | None = Field(default=None, description="Author name (instructor, etc.)")
+    site_id: str = Field(description="Course site ID")
+    site_name: str = Field(description="Course name")
+    url: str | None = Field(default=None, description="Web URL")
+    attachments: list[Attachment] = Field(default_factory=list, description="List of files attached to the announcement")
 
 
 class CalendarEvent(BaseModelConfig):
-    """カレンダーに登録されたスケジュール・講義イベント"""
-    id: str = Field(description="カレンダーイベント ID")
-    title: str = Field(description="イベントタイトル")
-    description: str | None = Field(default=None, description="イベント説明")
-    start_time: datetime | None = Field(default=None, description="開始日時")
-    end_time: datetime | None = Field(default=None, description="終了日時")
-    event_type: str | None = Field(default=None, description="イベント種別 (例: Assignment, Quiz, Academic Calendar)")
-    site_id: str | None = Field(default=None, description="所属する講義サイト ID (全学共通行事・祝日等の場合は None)")
-    site_name: str | None = Field(default=None, description="所属する講義名")
-    url: str | None = Field(default=None, description="Sakai 上のカレンダー直通 URL")
+    """Schedule or event registered in the calendar."""
+    id: str = Field(description="Calendar event ID")
+    title: str = Field(description="Event title")
+    description: str | None = Field(default=None, description="Event description")
+    start_time: datetime | None = Field(default=None, description="Start date and time")
+    end_time: datetime | None = Field(default=None, description="End date and time")
+    event_type: str | None = Field(default=None, description="Event type (e.g., Assignment, Quiz, Academic Calendar)")
+    site_id: str | None = Field(default=None, description="Course site ID (None for university-wide events or holidays)")
+    site_name: str | None = Field(default=None, description="Course name")
+    url: str | None = Field(default=None, description="Calendar URL")
 
 
 class CourseMaterial(BaseModelConfig):
-    """講義サイト内の授業資料・配布ファイル・フォルダ情報"""
-    id: str = Field(description="リソース ID (相対パス形式 /group/site_id/...)")
-    name: str = Field(description="ファイル名またはフォルダ名")
-    material_type: MaterialType = Field(default=MaterialType.FILE, description="資料種別 (file / folder)")
-    is_collection: bool = Field(default=False, description="フォルダ (コレクション) であるか")
-    url: str | None = Field(default=None, description="ダウンロード URL (Cookie 認証必須)")
-    size_bytes: int | None = Field(default=None, description="ファイルサイズ (バイト単位)")
-    modified_at: datetime | None = Field(default=None, description="最終更新日時")
-    path: str | None = Field(default=None, description="フォルダ階層パス (例: /第1回講義資料/スライド.pdf)")
-    mime_type: str | None = Field(default=None, description="MIME タイプ")
-    site_id: str = Field(description="所属する講義サイト ID")
-    site_name: str | None = Field(default=None, description="所属する講義名")
+    """Course material, distributed file, or folder information in the course site."""
+    id: str = Field(description="Resource ID (relative path format /group/site_id/...)")
+    name: str = Field(description="Filename or folder name")
+    material_type: MaterialType = Field(default=MaterialType.FILE, description="Material item type (file / folder)")
+    is_collection: bool = Field(default=False, description="Whether the item is a folder (collection)")
+    url: str | None = Field(default=None, description="Download URL (requires cookie authentication)")
+    size_bytes: int | None = Field(default=None, description="File size in bytes")
+    modified_at: datetime | None = Field(default=None, description="Last modified date and time")
+    path: str | None = Field(default=None, description="Folder path hierarchy (e.g., /Lecture01/slides.pdf)")
+    mime_type: str | None = Field(default=None, description="MIME type")
+    site_id: str = Field(description="Course site ID")
+    site_name: str | None = Field(default=None, description="Course name")
 
 
 class UnreadForumMessage(BaseModelConfig):
-    """講義のメッセージツールおよびフォーラムツールの未読件数情報"""
-    site_id: str = Field(description="講義サイト ID")
-    site_name: str = Field(description="講義名 / サイトタイトル")
-    unread_messages_count: int = Field(default=0, description="未読メッセージ件数")
-    unread_forums_count: int = Field(default=0, description="未読フォーラム件数")
-    message_url: str | None = Field(default=None, description="メッセージツール直通 Web URL")
-    forum_url: str | None = Field(default=None, description="フォーラムツール直通 Web URL")
-    site_url: str | None = Field(default=None, description="講義トップページ URL")
+    """Unread count information for course Messages and Forum tools."""
+    site_id: str = Field(description="Course site ID")
+    site_name: str = Field(description="Course name")
+    unread_messages_count: int = Field(default=0, description="Number of unread messages")
+    unread_forums_count: int = Field(default=0, description="Number of unread forum posts")
+    message_url: str | None = Field(default=None, description="Messages tool URL")
+    forum_url: str | None = Field(default=None, description="Forums tool URL")
+    site_url: str | None = Field(default=None, description="Course top page URL")
 
 
 class CourseDashboard(BaseModelConfig):
-    """特定講義の状況を一括集約した総合サマリーモデル"""
-    site_id: str = Field(description="講義サイト ID")
-    site_name: str = Field(description="講義名")
-    assignments: list[SakaiTask] = Field(default_factory=list, description="未提出・提出済みの課題一覧")
-    quizzes: list[SakaiTask] = Field(default_factory=list, description="小テスト・オンラインテスト一覧")
-    announcements: list[Announcement] = Field(default_factory=list, description="直近のお知らせ一覧")
-    materials: list[CourseMaterial] = Field(default_factory=list, description="授業資料・配布ファイル一覧")
-    unread_messages_count: int = Field(default=0, description="未読メッセージ件数")
-    unread_forums_count: int = Field(default=0, description="未読フォーラム件数")
-    message_url: str | None = Field(default=None, description="メッセージツール直通 Web URL")
-    forum_url: str | None = Field(default=None, description="フォーラムツール直通 Web URL")
+    """Consolidated summary model aggregating status for a specific course."""
+    site_id: str = Field(description="Course site ID")
+    site_name: str = Field(description="Course name")
+    assignments: list[SakaiTask] = Field(default_factory=list, description="List of unsubmitted and submitted assignments")
+    quizzes: list[SakaiTask] = Field(default_factory=list, description="List of quizzes and online tests")
+    announcements: list[Announcement] = Field(default_factory=list, description="List of recent announcements")
+    materials: list[CourseMaterial] = Field(default_factory=list, description="List of course materials and distributed files")
+    unread_messages_count: int = Field(default=0, description="Number of unread messages")
+    unread_forums_count: int = Field(default=0, description="Number of unread forum posts")
+    message_url: str | None = Field(default=None, description="Messages tool URL")
+    forum_url: str | None = Field(default=None, description="Forums tool URL")
 

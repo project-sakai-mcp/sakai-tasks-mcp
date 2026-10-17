@@ -658,7 +658,7 @@ class SakaiClient:
             CourseDashboard: 講義名および各データの総合サマリーモデル
         """
         site_names, _ = await self._resolve_site_context(site_id, favorites_only=False)
-        site_name = site_names.get(site_id, "名称未設定講義")
+        site_name = site_names.get(site_id, "Untitled Course")
 
         assignments_task = self.get_assignments(site_id=site_id)
         quizzes_task = self.get_quizzes(site_id=site_id)
@@ -717,4 +717,4 @@ class SakaiClient:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(content)
 
-        return f"ファイルが正常に保存されました: {p.resolve()} ({len(content)} バイト)"
+        return f"File saved successfully: {p.resolve()} ({len(content)} bytes)"

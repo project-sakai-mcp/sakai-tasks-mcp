@@ -39,7 +39,7 @@ def test_get_client_raises_when_host_unconfigured(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError) as exc_info:
         get_client()
 
-    assert "接続先大学のSakaiのドメインが設定されていません" in str(exc_info.value)
+    assert "The target university Sakai domain is not configured" in str(exc_info.value)
     assert "open_settings" in str(exc_info.value)
 
 
@@ -51,7 +51,7 @@ async def test_check_auth_status_returns_unconfigured_message(monkeypatch, tmp_p
 
     res = await check_auth_status()
     assert res["authenticated"] is False
-    assert "接続先大学のSakaiのドメインが設定されていません" in res["message"]
+    assert "The target university Sakai domain is not configured" in res["message"]
 
 
 def test_show_settings_window_opens_directly(monkeypatch, tmp_path):

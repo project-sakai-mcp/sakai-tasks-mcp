@@ -95,8 +95,7 @@ async def get_valid_cookies(
             < Config.AUTH_COOLDOWN_SECONDS
         ):
             raise RuntimeError(
-                "直前のログイン認証がキャンセルまたは失敗したため、"
-                "クールダウン中です。"
+                "Authentication is in cooldown because the previous login attempt was canceled or failed."
             )
 
         # ----------------------------------------------
@@ -197,7 +196,7 @@ async def get_valid_cookies(
             _last_auth_error_times[host] = time.monotonic()
             stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
             stdout_text = stdout_bytes.decode("utf-8", errors="replace").strip()
-            error_detail = stderr_text or stdout_text or "ログインウィンドウが閉じられたか、認証に失敗しました。"
+            error_detail = stderr_text or stdout_text or "The login window was closed or authentication failed."
 
             logger.error(
                 "WebView login subprocess failed with code %s.\nSTDERR: %s\nSTDOUT: %s",
@@ -207,8 +206,8 @@ async def get_valid_cookies(
             )
 
             raise RuntimeError(
-                f"WebViewログイン認証に失敗しました (終了コード: {returncode})。\n"
-                f"詳細: {error_detail}"
+                f"WebView login authentication failed (exit code: {returncode}).\n"
+                f"Details: {error_detail}"
             )
 
         logger.info("WebView login subprocess completed successfully.")
@@ -225,7 +224,7 @@ async def get_valid_cookies(
             _last_auth_error_times[host] = time.monotonic()
 
             raise RuntimeError(
-                "Sakai のセッション Cookie を取得できませんでした。"
+                "Failed to obtain Sakai session cookies."
             )
 
         # --------------------------------------------------
