@@ -60,7 +60,7 @@ class Config:
 
     UNIVERSITY_PRESETS: dict[str, str] = {
         "名古屋大学": "tact.ac.thers.ac.jp",
-        "京都大学": "panda.ecs.kyoto-u.ac.jp",
+        "京都大学": "lms.gakusei.kyoto-u.ac.jp",
         "東京農工大学": "lms.sirius.tuat.ac.jp",
         "東京都立大学": "kibaco.tmu.ac.jp",
     }

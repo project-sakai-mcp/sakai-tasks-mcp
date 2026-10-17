@@ -20,7 +20,7 @@ def test_university_presets():
     assert "名古屋大学" in presets
     assert presets["名古屋大学"] == "tact.ac.thers.ac.jp"
     assert "京都大学" in presets
-    assert presets["京都大学"] == "panda.ecs.kyoto-u.ac.jp"
+    assert presets["京都大学"] == "lms.gakusei.kyoto-u.ac.jp"
     assert "東京農工大学" in presets
     assert presets["東京農工大学"] == "lms.sirius.tuat.ac.jp"
     assert "東京都立大学" in presets
