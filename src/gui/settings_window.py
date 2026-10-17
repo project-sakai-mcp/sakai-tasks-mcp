@@ -1,6 +1,7 @@
 """Window launch and lifecycle management module for settings GUI."""
 
 import asyncio
+import time
 from pathlib import Path
 
 import webview
@@ -25,8 +26,8 @@ def show_settings_window() -> None:
     # 2. JS 通信ブリッジを初期化
     api = SettingsApi(initial_data=ui_data)
 
-    # 3. 設定画面ウィンドウをメインスレッドで直接生成して起動
-    webview.create_window(
+    # 3. 設定画面ウィンドウをメインスレッドで直接生成
+    window = webview.create_window(
         title="Sakai Tasks MCP 設定",
         url=template_path.as_uri(),
         js_api=api,
@@ -35,8 +36,20 @@ def show_settings_window() -> None:
         resizable=True,
     )
 
+    def bring_to_front(w: webview.Window) -> None:
+        """起動直後に一時的に TopMost にして確実にフォアグラウンドへ引き上げる"""
+        time.sleep(0.15)
+        try:
+            w.on_top = True
+            time.sleep(0.05)
+            w.on_top = False
+        except Exception:
+            pass
+
     # 4. webview.start はメインスレッドで起動 (OS ネイティブの[✕]ボタンで終了)
     webview.start(
+        bring_to_front,
+        window,
         storage_path=str(Config.WEBVIEW_DATA_DIR),
         private_mode=False,
     )
