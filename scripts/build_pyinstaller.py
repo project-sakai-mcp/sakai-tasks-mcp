@@ -4,7 +4,6 @@ PyInstaller による単一実行可能ファイル作成スクリプト
 docs/architecture.md 7.1.4 に準拠
 """
 
-import os
 import shutil
 import subprocess
 import sys
@@ -33,6 +32,12 @@ def get_pyinstaller_command() -> list[str]:
         "pywebview.platforms.winforms",
         "--hidden-import",
         "clr",
+        "--exclude-module",
+        "pytest",
+        "--exclude-module",
+        "unittest",
+        "--exclude-module",
+        "tkinter",
         str(SERVER_SCRIPT.relative_to(ROOT_DIR)),
     ]
     return cmd

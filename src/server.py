@@ -2,9 +2,9 @@
 
 import argparse
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 # Ensure project root is in sys.path for direct script execution
@@ -14,8 +14,8 @@ if _project_root not in sys.path:
 
 from mcp.server.fastmcp import FastMCP
 
-from src.client import SakaiClient
 from src.auth import cookie_storage, session_checker
+from src.client import SakaiClient
 from src.client.parsers.base import parse_datetime
 from src.config import Config
 from src.models import (
@@ -25,6 +25,7 @@ from src.models import (
     CourseMaterial,
     CourseSite,
     SakaiTask,
+    UnreadForumMessage,
 )
 from src.policy import (
     check_download_allowed_by_url,
@@ -34,6 +35,7 @@ from src.policy import (
     filter_courses,
     filter_dashboard,
     filter_tasks,
+    filter_unread_forum_messages,
 )
 
 SERVER_INSTRUCTIONS = """
@@ -73,7 +75,10 @@ SERVER_INSTRUCTIONS = """
 - 直近の課題・小テスト確認:
   個別ツール (`get_assignments`, `get_quizzes`, `get_calendar_events`) を個別に呼ぶのではなく、統合・締切ソート済みの集約ツール `get_upcoming_deadlines` を第一選択としてください。
 - 特定講義の総合確認:
-  課題・テスト・お知らせ・資料を一度に把握したい場合は、個別ツールを乱用せず、集約ツール `get_course_dashboard` を 1 回呼び出してください。個別ツールは「資料一覧だけ見たい」「お知らせだけ見たい」といった単一目的の場合のみ使用します。
+  課題・テスト・お知らせ・資料・未読メッセージを一度に把握したい場合は、個別ツールを乱用せず、集約ツール `get_course_dashboard` を 1 回呼び出してください。個別ツールは「資料一覧だけ見たい」「お知らせだけ見たい」「未読メッセージだけ見たい」といった単一目的の場合のみ使用します。
+- 未読メッセージ・フォーラム確認:
+  お知らせ (`get_announcements`) からは取得できない、講義内の個人宛メッセージや掲示板の未読投稿件数を確認する場合は `get_unread_messages_and_forums` を呼び出してください。
+
 
 【5. 並列呼び出し・バッチ処理の指針】
 - 本サーバーは内部で完全非同期 (asyncio)・Singleflight (同一リクエスト合流)・TTL キャッシュを備えており、高並行処理に最適化されています。
@@ -100,7 +105,7 @@ def get_client() -> SakaiClient:
         )
 
     if _client is None or _client.host != Config.SAKAI_HOST:
-        _client = SakaiClient(host=Config.SAKAI_HOST, timeout=Config.REQUEST_TIMEOUT, cache_ttl=Config.CACHE_TTL)
+        _client = SakaiClient(host=Config.SAKAI_HOST, timeout=Config.REQUEST_TIMEOUT)
     return _client
 
 
@@ -302,6 +307,25 @@ async def get_course_dashboard(
 
 
 @mcp.tool()
+async def get_unread_messages_and_forums(
+    site_id: str | None = None,
+    favorites_only: bool = True,
+) -> list[UnreadForumMessage]:
+    """
+    講義のメッセージツールおよびフォーラム（掲示板）ツールの未読件数と直通 Web URL 一覧を取得します。
+    お知らせ (announcements) では通知されない、個人宛メッセージや掲示板への新規投稿の有無を確認する際に使用します。
+
+    Args:
+        site_id: 特定の講義で絞り込む場合の講義サイト ID。
+        favorites_only: 原則としてデフォルトの True のまま呼び出してください。今学期履修中のお気に入り講義を対象とします。
+    """
+    client = get_client()
+    items = await client.get_unread_forum_messages(site_id=site_id, favorites_only=favorites_only)
+    return filter_unread_forum_messages(items)
+
+
+@mcp.tool()
+
 async def download_material(
     url: str,
     save_path: str,
@@ -415,7 +439,6 @@ def main():
     parser = argparse.ArgumentParser(description="Sakai Tasks MCP Server")
     parser.add_argument("--host", type=str, help="Sakai LMS のホスト名 (例: tact.ac.thers.ac.jp)")
     parser.add_argument("--settings", action="store_true", help="ユーザー設定 GUI 画面を起動する")
-    parser.add_argument("--setup", action="store_true", help="初回大学プリセット選択ダイアログを起動する")
     parser.add_argument("--login", action="store_true", help="WebView ログイン画面を別プロセスのメインスレッドで実行して Cookie を保存する")
     args = parser.parse_args()
 
@@ -433,12 +456,6 @@ def main():
     if args.settings:
         from src.gui.settings_window import show_settings_window
         show_settings_window()
-        sys.exit(0)
-
-    # 3. --setup 引数指定時: 初回大学プリセット選択ダイアログを起動して終了
-    if args.setup:
-        from src.gui.settings_window import show_initial_setup_window
-        show_initial_setup_window()
         sys.exit(0)
 
     # 4. 通常起動時: Config を安全に初期化 (stdio タイムアウト防止のためブロッキング GUI は出さない)

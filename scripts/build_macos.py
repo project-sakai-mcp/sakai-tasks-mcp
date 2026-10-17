@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 macOS 用 python-build-standalone 配布パッケージ作成スクリプト
+uv を使用して高速かつ最小限の構成でポータブルパッケージを構築します。
 docs/architecture.md 7.1.3 に準拠
 """
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys
@@ -20,11 +20,29 @@ PYTHON_DIR = PACKAGE_DIR / "python"
 SITE_PACKAGES_DIR = PYTHON_DIR / "lib" / "python3.12" / "site-packages"
 SRC_DIR = ROOT_DIR / "src"
 RUN_SH_SRC = ROOT_DIR / "scripts" / "run.sh"
-REQUIREMENTS_TXT = ROOT_DIR / "requirements.txt"
 
 STANDALONE_RELEASE_TAG = "20241016"
 STANDALONE_PYTHON_VERSION = "3.12.7"
 DEFAULT_ARCH = "aarch64"  # Apple Silicon (M1/M2/M3/M4)
+
+
+def find_uv() -> str:
+    """uv 実行バイナリのパスを取得する。"""
+    uv_bin = shutil.which("uv")
+    if uv_bin:
+        return uv_bin
+
+    for candidate in [
+        Path.home() / ".cargo" / "bin" / "uv",
+        Path.home() / ".local" / "bin" / "uv",
+    ]:
+        if candidate.exists():
+            return str(candidate)
+
+    raise RuntimeError(
+        "uv が見つかりません。配布パッケージのビルドには uv が必要です。"
+        "https://astral.sh/uv からインストールしてください。"
+    )
 
 
 def get_standalone_url(arch: str) -> tuple[str, str]:
@@ -64,8 +82,8 @@ def setup_standalone_python(dest_dir: Path, arch: str) -> None:
         tf.extractall(dest_dir)
 
 
-def install_dependencies(python_dir: Path, requirements_file: Path) -> None:
-    """依存ライブラリを python/lib/python3.12/site-packages にインストールする。"""
+def install_dependencies(python_dir: Path) -> None:
+    """uv を利用して本番依存ライブラリをスタンドアロン Python に直接インストールする。"""
     if sys.platform != "darwin":
         raise RuntimeError("build_macos.py must be run on macOS (darwin).")
 
@@ -73,18 +91,39 @@ def install_dependencies(python_dir: Path, requirements_file: Path) -> None:
     site_packages.mkdir(parents=True, exist_ok=True)
 
     python_bin = python_dir / "bin" / "python3"
-    print(f"[build_macos] Installing packages using standalone python into {site_packages}...")
+    uv_bin = find_uv()
+
+    print(f"[build_macos] Installing production dependencies via uv ({uv_bin})...")
     subprocess.run(
         [
-            str(python_bin),
-            "-m",
+            uv_bin,
             "pip",
             "install",
-            "-r",
-            str(requirements_file),
+            "--python",
+            str(python_bin),
+            str(ROOT_DIR),
         ],
         check=True,
     )
+
+    cleanup_bundle(python_dir)
+
+
+def cleanup_bundle(python_dir: Path) -> None:
+    """不要なキャッシュ・一時ファイルを削除する。"""
+    print("[build_macos] Cleaning up cache and temporary files...")
+    site_packages = python_dir / "lib" / "python3.12" / "site-packages"
+
+    if site_packages.exists():
+        for p in site_packages.rglob("__pycache__"):
+            if p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
+        for p in site_packages.rglob("*.py[co]"):
+            p.unlink(missing_ok=True)
+
+        for p in site_packages.glob("*/*"):
+            if p.is_dir() and p.name in ("tests", "test"):
+                shutil.rmtree(p, ignore_errors=True)
 
 
 def copy_app_files(package_dir: Path) -> None:
@@ -131,7 +170,7 @@ def build(arch: str = DEFAULT_ARCH) -> Path:
     PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
 
     setup_standalone_python(PACKAGE_DIR, arch)
-    install_dependencies(PYTHON_DIR, REQUIREMENTS_TXT)
+    install_dependencies(PYTHON_DIR)
     copy_app_files(PACKAGE_DIR)
 
     output_tar = DIST_DIR / "sakai-tasks-mcp-macos.tar.gz"

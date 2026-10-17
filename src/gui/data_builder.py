@@ -1,9 +1,9 @@
 """UI data builder module for Sakai settings."""
 
-import asyncio
 from pydantic import BaseModel
-from src.config import AIPolicyMode, Config
+
 from src.client.sakai_client import SakaiClient
+from src.config import AIPolicyMode, Config
 
 
 class CourseSettingItem(BaseModel):
@@ -20,6 +20,7 @@ class SettingsUIData(BaseModel):
     presets: dict[str, str]          # 大学ドメインプリセット一覧
     default_deadline_days: int       # 直近締切の取得対象日数 (デフォルト 30)
     default_announcement_limit: int  # お知らせ取得の最大件数 (デフォルト 7)
+    request_timeout: float = 30.0    # 通信タイムアウト秒数 (デフォルト 30.0)
     courses: list[CourseSettingItem] # 講義一覧 (お気に入り優先順)
 
 
@@ -27,13 +28,25 @@ async def build_settings_ui_data() -> SettingsUIData:
     """
     Sakai から全講義一覧を取得し、既存の config.json とマージして
     UI 用データ (SettingsUIData) を構築する。
+    sakai_host が未設定の場合は SakaiClient の呼び出しをスキップする。
     """
-    # 1. 講義一覧とお気に入り情報を SakaiClient から取得 (未ログインなら自動ログイン)
+    # 1. 現在の config.json をロード
+    config = Config.load()
+
+    # 2. sakai_host が未設定の場合は講義一覧取得をスキップして即座に返却
+    if not config.sakai_host:
+        return SettingsUIData(
+            sakai_host="",
+            presets=Config.UNIVERSITY_PRESETS,
+            default_deadline_days=config.default_deadline_days,
+            default_announcement_limit=config.default_announcement_limit,
+            request_timeout=config.request_timeout,
+            courses=[],
+        )
+
+    # 3. 講義一覧とお気に入り情報を SakaiClient から取得 (未ログインなら自動ログイン)
     async with SakaiClient() as client:
         courses = await client.get_courses(favorites_only=False)
-
-    # 2. 現在の config.json をロード
-    config = Config.load()
 
     # 3. 講義データと既存ポリシーをマージ (お気に入り講義を先頭にソート)
     course_items = []
@@ -55,5 +68,6 @@ async def build_settings_ui_data() -> SettingsUIData:
         presets=Config.UNIVERSITY_PRESETS,
         default_deadline_days=config.default_deadline_days,
         default_announcement_limit=config.default_announcement_limit,
+        request_timeout=config.request_timeout,
         courses=course_items,
     )

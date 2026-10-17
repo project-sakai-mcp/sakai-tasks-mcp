@@ -1,6 +1,8 @@
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+
 from pydantic import BaseModel, ConfigDict, Field
+
 
 class TaskType(str, Enum):
     """タスク種別"""
@@ -117,6 +119,17 @@ class CourseMaterial(BaseModelConfig):
     site_name: str | None = Field(default=None, description="所属する講義名")
 
 
+class UnreadForumMessage(BaseModelConfig):
+    """講義のメッセージツールおよびフォーラムツールの未読件数情報"""
+    site_id: str = Field(description="講義サイト ID")
+    site_name: str = Field(description="講義名 / サイトタイトル")
+    unread_messages_count: int = Field(default=0, description="未読メッセージ件数")
+    unread_forums_count: int = Field(default=0, description="未読フォーラム件数")
+    message_url: str | None = Field(default=None, description="メッセージツール直通 Web URL")
+    forum_url: str | None = Field(default=None, description="フォーラムツール直通 Web URL")
+    site_url: str | None = Field(default=None, description="講義トップページ URL")
+
+
 class CourseDashboard(BaseModelConfig):
     """特定講義の状況を一括集約した総合サマリーモデル"""
     site_id: str = Field(description="講義サイト ID")
@@ -125,3 +138,8 @@ class CourseDashboard(BaseModelConfig):
     quizzes: list[SakaiTask] = Field(default_factory=list, description="小テスト・オンラインテスト一覧")
     announcements: list[Announcement] = Field(default_factory=list, description="直近のお知らせ一覧")
     materials: list[CourseMaterial] = Field(default_factory=list, description="授業資料・配布ファイル一覧")
+    unread_messages_count: int = Field(default=0, description="未読メッセージ件数")
+    unread_forums_count: int = Field(default=0, description="未読フォーラム件数")
+    message_url: str | None = Field(default=None, description="メッセージツール直通 Web URL")
+    forum_url: str | None = Field(default=None, description="フォーラムツール直通 Web URL")
+

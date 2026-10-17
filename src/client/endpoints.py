@@ -13,6 +13,7 @@ CALENDAR_MY = "/direct/calendar/my.json"                # カレンダー予定�
 ANNOUNCEMENT_USER = "/direct/announcement/user.json"    # 全講義のお知らせ一覧 (?d=日数)
 
 ATTACHMENT_ACCESS_PREFIX = "/access/content/attachment" # 添付ファイルダウンロード用 URL プレフィックス
+USERS_ME_FORUMS = "/api/users/me/forums"                 # 未読メッセージ・フォーラム一覧 (JSON)
 
 
 # ==============================================================================
@@ -55,3 +56,17 @@ def content_site(site_id: str) -> str:
 def get_site_url(host: str, site_id: str) -> str:
     """講義トップページ URL (https://<host>/portal/site/{site_id})"""
     return f"https://{host}/portal/site/{site_id}"
+
+
+# ==============================================================================
+# エンドポイント別キャッシュ有効期限 (TTL) ポリシー
+# ==============================================================================
+
+# 特定エンドポイントの個別 TTL 定義 (秒)
+ENDPOINT_CACHE_TTL_MAP: dict[str, float] = {
+    SITE_LIST: 86400.0,              # 履修講義一覧: 1日
+    PORTAL_FAVORITES_LIST: 86400.0,  # お気に入り講義一覧: 1日
+}
+
+# 上記以外の全エンドポイントに適用するデフォルト TTL (秒)
+DEFAULT_CACHE_TTL: float = 0.0

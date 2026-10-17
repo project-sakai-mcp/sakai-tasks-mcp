@@ -1,23 +1,25 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
 import logging
-from pathlib import Path
 import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
 import httpx
 
-from src.config import Config
 from src.auth import get_valid_cookies
 from src.client import endpoints
-from src.client.parsers.favorite_parser import parse_favorite_courses
-from src.client.parsers.course_parser import parse_courses
-from src.client.parsers.assignment_parser import parse_assignments
-from src.client.parsers.quiz_parser import parse_quizzes
+from src.client.exceptions import SakaiTimeoutError
 from src.client.parsers.announcement_parser import parse_announcements
+from src.client.parsers.assignment_parser import parse_assignments
 from src.client.parsers.calendar_parser import parse_calendar_events
 from src.client.parsers.content_parser import parse_course_contents
-
+from src.client.parsers.course_parser import parse_courses
+from src.client.parsers.favorite_parser import parse_favorite_courses
+from src.client.parsers.forum_parser import parse_unread_forum_messages
+from src.client.parsers.quiz_parser import parse_quizzes
+from src.config import Config
 from src.models import (
     Announcement,
     CalendarEvent,
@@ -25,6 +27,7 @@ from src.models import (
     CourseMaterial,
     CourseSite,
     SakaiTask,
+    UnreadForumMessage,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,17 +42,14 @@ class SakaiClient:
         self,
         host: str | None = None,
         timeout: float | None = None,
-        cache_ttl: float | None = None,
     ):
         """
         Args:
             host: Sakai ホスト名 (未指定時は Config.SAKAI_HOST)
             timeout: HTTP リクエストのタイムアウト秒数 (未指定時は Config.REQUEST_TIMEOUT)
-            cache_ttl: 講義一覧・ツール情報のインメモリキャッシュ有効秒数 (未指定時は Config.CACHE_TTL)
         """
         self.host = host or Config.SAKAI_HOST
         self.timeout = timeout if timeout is not None else Config.REQUEST_TIMEOUT
-        self.cache_ttl = cache_ttl if cache_ttl is not None else Config.CACHE_TTL
 
         self._http_client: httpx.AsyncClient | None = None
         self._client_lock: asyncio.Lock | None = None
@@ -162,12 +162,25 @@ class SakaiClient:
             return True
         return False
 
+    def _resolve_ttl(
+        self,
+        endpoint: str,
+        force_refresh: bool = False,
+    ) -> float:
+        """エンドポイントに応じた適用 TTL (秒) を解決する。"""
+        if force_refresh:
+            return 0.0
+        for pattern, ttl in endpoints.ENDPOINT_CACHE_TTL_MAP.items():
+            if pattern == endpoint or pattern in endpoint:
+                return ttl
+        return endpoints.DEFAULT_CACHE_TTL
+
     async def _fetch(
         self,
         method: str,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        ttl: float = 0.0,
+        force_refresh: bool = False,
         as_json: bool = True,
         default: Any = None,
     ) -> Any:
@@ -179,13 +192,14 @@ class SakaiClient:
         param_key = tuple(sorted(params.items())) if params else ()
         cache_key = f"{'JSON' if as_json else 'TEXT'}:{method}:{endpoint}:{param_key}"
         now = time.monotonic()
+        resolved_ttl = self._resolve_ttl(endpoint, force_refresh=force_refresh)
 
         # 1. キャッシュの確認 (有効期限内なら即返却)
-        if ttl > 0:
+        if resolved_ttl > 0:
             async with self._get_cache_lock():
                 if cache_key in self._response_cache:
                     data, cached_at = self._response_cache[cache_key]
-                    if now - cached_at < ttl:
+                    if now - cached_at < resolved_ttl:
                         return data
 
         # 2. 通信中リクエストの多重防止 (先行タスクの完了をロック外で待機)
@@ -208,13 +222,23 @@ class SakaiClient:
             result = resp.json() if as_json else resp.text
 
             # キャッシュ保存
-            if ttl > 0:
+            if resolved_ttl > 0:
                 async with self._get_cache_lock():
                     self._response_cache[cache_key] = (result, time.monotonic())
 
             if not fut.done():
                 fut.set_result(result)
             return result
+        except httpx.TimeoutException as e:
+            msg = (
+                f"Request to Sakai LMS timed out after {self.timeout}s: {method} {endpoint}. "
+                f"The server may be overloaded or responding slowly."
+            )
+            logger.warning(msg)
+            err = SakaiTimeoutError(msg, timeout=self.timeout)
+            if not fut.done():
+                fut.set_exception(err)
+            raise err from e
         except httpx.HTTPStatusError as e:
             if default is not None:
                 logger.warning(
@@ -252,29 +276,28 @@ class SakaiClient:
         self,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        ttl: float = 0.0,
+        force_refresh: bool = False,
         default: Any = None,
     ) -> dict[str, Any]:
         """JSON レスポンスを取得する。"""
-        return await self._fetch("GET", endpoint, params=params, ttl=ttl, as_json=True, default=default)
+        return await self._fetch("GET", endpoint, params=params, force_refresh=force_refresh, as_json=True, default=default)
 
     async def _get_text(
         self,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        ttl: float = 0.0,
+        force_refresh: bool = False,
         default: Any = None,
     ) -> str:
         """HTML / テキストレスポンスを取得する。"""
-        return await self._fetch("GET", endpoint, params=params, ttl=ttl, as_json=False, default=default)
+        return await self._fetch("GET", endpoint, params=params, force_refresh=force_refresh, as_json=False, default=default)
 
     async def _get_all_courses_cached(self, force_refresh: bool = False) -> list[CourseSite]:
         """
         全講義一覧（お気に入りフラグ & tool_pages 付き）を取得する。
         """
-        ttl = 0.0 if force_refresh else self.cache_ttl
-        favorites_task = self._get_json(endpoints.PORTAL_FAVORITES_LIST, ttl=ttl, default={})
-        sites_task = self._get_json(endpoints.SITE_LIST, ttl=ttl)
+        favorites_task = self._get_json(endpoints.PORTAL_FAVORITES_LIST, force_refresh=force_refresh, default={})
+        sites_task = self._get_json(endpoints.SITE_LIST, force_refresh=force_refresh)
         favorites_json, sites_json = await asyncio.gather(favorites_task, sites_task)
 
         fav_courses = parse_favorite_courses(favorites_json, self.host)
@@ -345,16 +368,51 @@ class SakaiClient:
         Returns:
             list[SakaiTask]: 課題タスクモデル一覧 (task_type=TaskType.ASSIGNMENT)
         """
+
         site_names, site_tool_pages = await self._resolve_site_context(site_id, favorites_only)
-        data = await self._get_json(endpoints.ASSIGNMENT_MY)
-        return parse_assignments(
-            data=data,
-            host=self.host,
-            site_names=site_names,
-            site_tool_pages=site_tool_pages,
-            assignment_id=assignment_id,
-            include_details=include_details,
-        )
+        sem = asyncio.Semaphore(10)
+
+        async def fetch_one(s_id: str, s_name: str, t_pages: dict[str, str]) -> list[SakaiTask]:
+            async with sem:
+                endpoint = endpoints.assignment_site(s_id)
+                data = await self._get_json(endpoint=endpoint, default={})
+                return parse_assignments(
+                    data=data,
+                    host=self.host,
+                    site_names={s_id: s_name},
+                    site_tool_pages={s_id: t_pages},
+                    assignment_id=assignment_id,
+                    include_details=include_details,
+                )
+
+        tasks = [
+            fetch_one(s_id, s_name, site_tool_pages.get(s_id, {}))
+            for s_id, s_name in site_names.items()
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_tasks: list[SakaiTask] = []
+        timeout_sites: list[str] = []
+
+        for (s_id, s_name), res in zip(site_names.items(), results):
+            if isinstance(res, (httpx.TimeoutException, SakaiTimeoutError)):
+                timeout_sites.append(f"'{s_name}' ({s_id})")
+            elif isinstance(res, Exception):
+                logger.warning(f"Error fetching assignments for site '{s_name}' ({s_id}): {res}")
+            else:
+                all_tasks.extend(res)
+
+        if timeout_sites:
+            failed_str = ", ".join(timeout_sites)
+            raise SakaiTimeoutError(
+                f"Request to Sakai LMS timed out ({self.timeout}s) while fetching assignments for course(s): [{failed_str}]. "
+                f"The server may be overloaded. Please try again later, increase the request timeout in settings (`open_settings`), "
+                f"or request with a specific site_id.",
+                timeout=self.timeout,
+                failed_sites=timeout_sites,
+            )
+
+        return all_tasks
 
     async def get_quizzes(
         self,
@@ -372,7 +430,7 @@ class SakaiClient:
             list[SakaiTask]: テスト・クイズタスクモデル一覧 (task_type=TaskType.QUIZ)
         """
         site_names, site_tool_pages = await self._resolve_site_context(site_id, favorites_only)
-        sem = asyncio.Semaphore(5)
+        sem = asyncio.Semaphore(10)
 
         async def fetch_one(s_id: str, s_name: str, t_pages: dict[str, str]) -> list[SakaiTask]:
             async with sem:
@@ -385,8 +443,30 @@ class SakaiClient:
             fetch_one(s_id, s_name, site_tool_pages.get(s_id, {}))
             for s_id, s_name in site_names.items()
         ]
-        results = await asyncio.gather(*tasks)
-        return [task for sublist in results for task in sublist]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_tasks: list[SakaiTask] = []
+        timeout_sites: list[str] = []
+
+        for (s_id, s_name), res in zip(site_names.items(), results):
+            if isinstance(res, (httpx.TimeoutException, SakaiTimeoutError)):
+                timeout_sites.append(f"'{s_name}' ({s_id})")
+            elif isinstance(res, Exception):
+                logger.warning(f"Error fetching quizzes for site '{s_name}' ({s_id}): {res}")
+            else:
+                all_tasks.extend(res)
+
+        if timeout_sites:
+            failed_str = ", ".join(timeout_sites)
+            raise SakaiTimeoutError(
+                f"Request to Sakai LMS timed out ({self.timeout}s) while fetching quizzes for course(s): [{failed_str}]. "
+                f"The server may be overloaded. Please try again later, increase the request timeout in settings (`open_settings`), "
+                f"or request with a specific site_id.",
+                timeout=self.timeout,
+                failed_sites=timeout_sites,
+            )
+
+        return all_tasks
 
     async def get_announcements(
         self,
@@ -456,15 +536,15 @@ class SakaiClient:
         )
         if start_date:
             if start_date.tzinfo is None:
-                start_date = start_date.replace(tzinfo=timezone.utc)
+                start_date = start_date.replace(tzinfo=UTC)
             else:
-                start_date = start_date.astimezone(timezone.utc)
+                start_date = start_date.astimezone(UTC)
             events = [e for e in events if e.start_time and e.start_time >= start_date]
         if end_date:
             if end_date.tzinfo is None:
-                end_date = end_date.replace(tzinfo=timezone.utc)
+                end_date = end_date.replace(tzinfo=UTC)
             else:
-                end_date = end_date.astimezone(timezone.utc)
+                end_date = end_date.astimezone(UTC)
             events = [e for e in events if e.start_time and e.start_time <= end_date]
         return events
 
@@ -517,7 +597,7 @@ class SakaiClient:
         """
         if days is None:
             days = Config.DEFAULT_DEADLINE_DAYS
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         limit_date = now + timedelta(days=days)
 
         assignments_task = self.get_assignments(favorites_only=favorites_only, include_details=False)
@@ -533,15 +613,43 @@ class SakaiClient:
                 if now <= t.due_date <= limit_date:
                     upcoming.append(t)
 
-        upcoming.sort(key=lambda x: x.due_date or datetime.max.replace(tzinfo=timezone.utc))
+        upcoming.sort(key=lambda x: x.due_date or datetime.max.replace(tzinfo=UTC))
         return upcoming
+
+    async def get_unread_forum_messages(
+        self,
+        site_id: str | None = None,
+        favorites_only: bool = True,
+    ) -> list[UnreadForumMessage]:
+        """
+        講義の未読メッセージおよび未読フォーラム件数一覧を取得する。
+
+        Args:
+            site_id: 特定の講義サイト ID で絞り込む場合は指定
+            favorites_only: True の場合はお気に入り講義のみ対象 (デフォルト: True)
+
+        Returns:
+            list[UnreadForumMessage]: 各講義の未読件数・URL情報一覧
+        """
+        data = await self._get_json(endpoints.USERS_ME_FORUMS, default=[])
+        items = parse_unread_forum_messages(data, host=self.host)
+
+        if favorites_only:
+            favorite_courses = await self.get_favorite_courses()
+            favorite_ids = {c.id for c in favorite_courses}
+            items = [item for item in items if item.site_id in favorite_ids]
+
+        if site_id is not None:
+            items = [item for item in items if item.site_id == site_id]
+
+        return items
 
     async def get_course_dashboard(
         self,
         site_id: str,
     ) -> CourseDashboard:
         """
-        指定講義の総合状況（課題・小テスト・直近お知らせ・授業資料）を並行一括取得してサマリーを生成する。
+        指定講義の総合状況（課題・小テスト・直近お知らせ・授業資料・未読メッセージ/フォーラム）を並行一括取得してサマリーを生成する。
 
         Args:
             site_id: 講義サイト ID (必須)
@@ -556,13 +664,17 @@ class SakaiClient:
         quizzes_task = self.get_quizzes(site_id=site_id)
         announcements_task = self.get_announcements(site_id=site_id, n=5)
         materials_task = self.get_course_materials(site_id=site_id)
+        unread_task = self.get_unread_forum_messages(site_id=site_id, favorites_only=False)
 
-        assignments, quizzes, announcements, materials = await asyncio.gather(
+        assignments, quizzes, announcements, materials, unread_list = await asyncio.gather(
             assignments_task,
             quizzes_task,
             announcements_task,
             materials_task,
+            unread_task,
         )
+
+        unread_info = unread_list[0] if unread_list else None
 
         return CourseDashboard(
             site_id=site_id,
@@ -571,7 +683,12 @@ class SakaiClient:
             quizzes=quizzes,
             announcements=announcements,
             materials=materials,
+            unread_messages_count=unread_info.unread_messages_count if unread_info else 0,
+            unread_forums_count=unread_info.unread_forums_count if unread_info else 0,
+            message_url=unread_info.message_url if unread_info else None,
+            forum_url=unread_info.forum_url if unread_info else None,
         )
+
 
     async def download_material(
         self,

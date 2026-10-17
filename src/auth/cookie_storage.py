@@ -7,7 +7,6 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from src.config import Config
 
-
 _KEYRING_SERVICE = "sakai-tasks-mcp"
 _KEYRING_USERNAME = "fernet_key"
 

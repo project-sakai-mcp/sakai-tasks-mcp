@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Windows 用 Embeddable Python 配布パッケージ作成スクリプト
+uv を使用して高速かつ最小限の構成でポータブルパッケージを構築します。
 docs/architecture.md 7.1.2 に準拠
 """
 
-import os
 import shutil
 import subprocess
 import sys
@@ -19,12 +19,30 @@ PYTHON_EMBED_DIR = PACKAGE_DIR / "python-embed"
 SITE_PACKAGES_DIR = PYTHON_EMBED_DIR / "Lib" / "site-packages"
 SRC_DIR = ROOT_DIR / "src"
 RUN_BAT_SRC = ROOT_DIR / "scripts" / "run.bat"
-REQUIREMENTS_TXT = ROOT_DIR / "requirements.txt"
 
 PYTHON_VERSION = "3.12.8"
 EMBED_ZIP_NAME = f"python-{PYTHON_VERSION}-embed-amd64.zip"
 EMBED_URL = f"https://www.python.org/ftp/python/{PYTHON_VERSION}/{EMBED_ZIP_NAME}"
-GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
+
+
+def find_uv() -> str:
+    """uv 実行バイナリのパスを取得する。"""
+    uv_bin = shutil.which("uv")
+    if uv_bin:
+        return uv_bin
+
+    # ユーザーホームディレクトリ配下の候補探索
+    for candidate in [
+        Path.home() / ".cargo" / "bin" / "uv.exe",
+        Path.home() / ".local" / "bin" / "uv.exe",
+    ]:
+        if candidate.exists():
+            return str(candidate)
+
+    raise RuntimeError(
+        "uv が見つかりません。配布パッケージのビルドには uv が必要です。"
+        "https://astral.sh/uv からインストールしてください。"
+    )
 
 
 def download_file(url: str, dest_path: Path) -> Path:
@@ -77,8 +95,8 @@ def configure_pth(python_embed_dir: Path) -> None:
     config_file.write_text(config_content, encoding="utf-8")
 
 
-def install_dependencies(python_embed_dir: Path, requirements_file: Path) -> None:
-    """依存ライブラリを python-embed/Lib/site-packages にインストールする。"""
+def install_dependencies(python_embed_dir: Path) -> None:
+    """uv を利用して本番依存ライブラリを Embeddable Python に直接インストールする。"""
     if sys.platform != "win32":
         raise RuntimeError("build_windows.py must be run on Windows (win32).")
 
@@ -86,48 +104,46 @@ def install_dependencies(python_embed_dir: Path, requirements_file: Path) -> Non
     site_packages.mkdir(parents=True, exist_ok=True)
 
     python_exe = python_embed_dir / "python.exe"
-    get_pip_path = python_embed_dir / "get-pip.py"
-    download_file(GET_PIP_URL, get_pip_path)
+    uv_bin = find_uv()
 
-    print("[build_windows] Installing pip into embeddable Python...")
-    subprocess.run(
-        [str(python_exe), str(get_pip_path), "--no-warn-script-location"],
-        check=True,
-    )
-    if get_pip_path.exists():
-        get_pip_path.unlink()
-
-    print("[build_windows] Installing setuptools and wheel into embeddable Python...")
+    print(f"[build_windows] Installing production dependencies via uv ({uv_bin})...")
     subprocess.run(
         [
-            str(python_exe),
-            "-m",
+            uv_bin,
             "pip",
             "install",
-            "setuptools",
-            "wheel",
-            "--no-warn-script-location",
+            "--python",
+            str(python_exe),
+            str(ROOT_DIR),
         ],
         check=True,
     )
 
-    print(f"[build_windows] Installing packages from {requirements_file}...")
-    subprocess.run(
-        [
-            str(python_exe),
-            "-m",
-            "pip",
-            "install",
-            "-r",
-            str(requirements_file),
-            "--no-warn-script-location",
-        ],
-        check=True,
-    )
+    cleanup_bundle(python_embed_dir)
 
+
+def cleanup_bundle(python_embed_dir: Path) -> None:
+    """不要なキャッシュ・中間ファイル・テストディレクトリを削除してパッケージを軽量化する。"""
+    print("[build_windows] Cleaning up cache and temporary files...")
+    site_packages = python_embed_dir / "Lib" / "site-packages"
+
+    # 1. Scripts ディレクトリが存在する場合は削除
     scripts_dir = python_embed_dir / "Scripts"
     if scripts_dir.exists():
-        shutil.rmtree(scripts_dir)
+        shutil.rmtree(scripts_dir, ignore_errors=True)
+
+    if site_packages.exists():
+        # 2. __pycache__, *.pyc, *.pyo の削除
+        for p in site_packages.rglob("__pycache__"):
+            if p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
+        for p in site_packages.rglob("*.py[co]"):
+            p.unlink(missing_ok=True)
+
+        # 3. パッケージ内のテストディレクトリ (tests, test) のクリーンアップ
+        for p in site_packages.glob("*/*"):
+            if p.is_dir() and p.name in ("tests", "test"):
+                shutil.rmtree(p, ignore_errors=True)
 
 
 def copy_app_files(package_dir: Path) -> None:
@@ -173,7 +189,7 @@ def build() -> Path:
 
     setup_embeddable_python(PYTHON_EMBED_DIR)
     configure_pth(PYTHON_EMBED_DIR)
-    install_dependencies(PYTHON_EMBED_DIR, REQUIREMENTS_TXT)
+    install_dependencies(PYTHON_EMBED_DIR)
     copy_app_files(PACKAGE_DIR)
 
     output_zip = DIST_DIR / "sakai-tasks-mcp-windows.zip"
