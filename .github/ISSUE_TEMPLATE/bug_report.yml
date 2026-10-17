@@ -1,0 +1,76 @@
+name: Bug Report
+description: Report a bug
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Never paste your password, session cookie or `JSESSIONID`. Remove names, ids and the university hostname from any output.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "e.g. Windows 11, macOS 15"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai_client
+    attributes:
+      label: AI Client
+      options:
+        - Claude Desktop
+        - Cursor
+        - Google Antigravity
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Installation Method
+      options:
+        - Pre-built binary (Windows ZIP)
+        - Pre-built binary (macOS tar.gz)
+        - Run from source
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove cookies, tokens, names and ids before pasting.
+      render: text
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
