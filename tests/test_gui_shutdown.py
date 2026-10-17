@@ -158,7 +158,10 @@ def test_show_settings_window_simplified_start(monkeypatch, tmp_path):
             with patch("webview.start") as mock_start:
                 settings_window.show_settings_window()
                 mock_create_window.assert_called_once()
-                mock_start.assert_called_once_with(
-                    storage_path=str(Config.WEBVIEW_DATA_DIR),
-                    private_mode=False,
-                )
+                mock_start.assert_called_once()
+                # 引数の検証
+                args, kwargs = mock_start.call_args
+                assert kwargs.get("storage_path") == str(Config.WEBVIEW_DATA_DIR)
+                assert kwargs.get("private_mode") is False
+                assert len(args) == 2  # bring_to_front 関数と window インスタンス
+                assert callable(args[0])
