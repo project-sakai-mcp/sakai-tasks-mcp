@@ -17,14 +17,14 @@ def test_config_default_host_is_empty():
 def test_university_presets():
     """UNIVERSITY_PRESETS に指定された大学が含まれ、非対応大学が除外されていることを検証"""
     presets = Config.UNIVERSITY_PRESETS
-    assert "名古屋大学 (TACT)" in presets
-    assert presets["名古屋大学 (TACT)"] == "tact.ac.thers.ac.jp"
-    assert "京都大学 (PandA)" in presets
-    assert presets["京都大学 (PandA)"] == "panda.ecs.kyoto-u.ac.jp"
-    assert "東京農工大学 (SIRIUS)" in presets
-    assert presets["東京農工大学 (SIRIUS)"] == "lms.sirius.tuat.ac.jp"
-    assert "東京都立大学 (kibaco)" in presets
-    assert presets["東京都立大学 (kibaco)"] == "kibaco.tmu.ac.jp"
+    assert "名古屋大学" in presets
+    assert presets["名古屋大学"] == "tact.ac.thers.ac.jp"
+    assert "京都大学" in presets
+    assert presets["京都大学"] == "panda.ecs.kyoto-u.ac.jp"
+    assert "東京農工大学" in presets
+    assert presets["東京農工大学"] == "lms.sirius.tuat.ac.jp"
+    assert "東京都立大学" in presets
+    assert presets["東京都立大学"] == "kibaco.tmu.ac.jp"
 
     # Sakaiから移行済みの大学が除外されていることを検証
     assert not any("法政" in name for name in presets)
