@@ -1,5 +1,8 @@
 # Sakai Tasks MCP
 
+[![Test & Lint](https://github.com/sayt25606-rgb/sakai-tasks-mcp/actions/workflows/test.yml/badge.svg?branch=dev)](https://github.com/sayt25606-rgb/sakai-tasks-mcp/actions/workflows/test.yml)
+[![Build Packages](https://github.com/sayt25606-rgb/sakai-tasks-mcp/actions/workflows/build.yml/badge.svg)](https://github.com/sayt25606-rgb/sakai-tasks-mcp/actions/workflows/build.yml)
+
 Unofficial MCP server for Sakai LMS.
 
 [日本語インストールページ](https://project-sakai-mcp.github.io/sakai-tasks-mcp/)
