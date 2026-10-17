@@ -14,6 +14,23 @@ def test_config_default_host_is_empty():
     assert data.sakai_host == ""
 
 
+def test_university_presets():
+    """UNIVERSITY_PRESETS に指定された大学が含まれ、非対応大学が除外されていることを検証"""
+    presets = Config.UNIVERSITY_PRESETS
+    assert "名古屋大学 (TACT)" in presets
+    assert presets["名古屋大学 (TACT)"] == "tact.ac.thers.ac.jp"
+    assert "京都大学 (PandA)" in presets
+    assert presets["京都大学 (PandA)"] == "panda.ecs.kyoto-u.ac.jp"
+    assert "東京農工大学 (SIRIUS)" in presets
+    assert presets["東京農工大学 (SIRIUS)"] == "lms.sirius.tuat.ac.jp"
+    assert "東京都立大学 (kibaco)" in presets
+    assert presets["東京都立大学 (kibaco)"] == "kibaco.tmu.ac.jp"
+
+    # Sakaiから移行済みの大学が除外されていることを検証
+    assert not any("法政" in name for name in presets)
+    assert not any("岡山" in name for name in presets)
+
+
 def test_get_client_raises_when_host_unconfigured(monkeypatch, tmp_path):
     """ホストが未設定の場合、get_client が RuntimeError を投げることを検証"""
     monkeypatch.setattr(Config, "CONFIG_FILE_PATH", tmp_path / "nonexistent.json")
@@ -22,7 +39,7 @@ def test_get_client_raises_when_host_unconfigured(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError) as exc_info:
         get_client()
 
-    assert "Sakai の接続先大学が設定されていません" in str(exc_info.value)
+    assert "接続先大学のSakaiのドメインが設定されていません" in str(exc_info.value)
     assert "open_settings" in str(exc_info.value)
 
 
@@ -34,7 +51,7 @@ async def test_check_auth_status_returns_unconfigured_message(monkeypatch, tmp_p
 
     res = await check_auth_status()
     assert res["authenticated"] is False
-    assert "Sakai の接続先大学が設定されていません" in res["message"]
+    assert "接続先大学のSakaiのドメインが設定されていません" in res["message"]
 
 
 def test_show_settings_window_opens_initial_setup_first_if_unconfigured(monkeypatch, tmp_path):
