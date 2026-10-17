@@ -169,11 +169,7 @@ def authenticate_via_webview(
             elapsed = now - started_at
 
             try:
-                raw_url = window.get_current_url()
-                if raw_url is None and shown:
-                    # ウィンドウ表示後に None が返る場合、ウィンドウが破棄されたと判定
-                    return
-                url = raw_url or ""
+                url = window.get_current_url() or ""
             except Exception:
                 # ユーザーがウィンドウを閉じた場合など
                 return

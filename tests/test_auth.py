@@ -183,18 +183,19 @@ def test_user_closes_window_via_closed_event_returns_empty():
     assert cookies == []
 
 
-def test_user_closes_window_via_none_url_after_shown_returns_empty():
-    """ウィンドウ表示後に get_current_url が None を返した場合 (WebView2 の破棄時)、即座に空リストが返ることを検証"""
+def test_temporary_none_or_empty_url_during_redirect_continues():
+    """リダイレクトの合間に一時的に URL が None や空文字になっても中断せず、最終ポータル到達で成功することを検証"""
     mock_window = MagicMock()
     mock_window.events.closed.is_set.return_value = False
 
-    # 1. ログインURL
-    # 2. 静止して shown = True
-    # 3. ユーザーが閉じて None が返る
+    # 1. ログイン画面
+    # 2. 静止して表示
+    # 3. 認証後のリダイレクトの隙間で一時的に None / ""
+    # 4. ポータルに着地
     urls = (
         ["https://tact.ac.thers.ac.jp/portal/login"] * 2
-        + ["https://idp.example.ac.jp/login"] * 3  # pause_duration 満了で show() される
-        + [None]  # 閉じた
+        + ["https://idp.example.ac.jp/login"] * 3
+        + [None, "", "https://tact.ac.thers.ac.jp/portal"]
     )
     url_idx = 0
 
@@ -204,12 +205,13 @@ def test_user_closes_window_via_none_url_after_shown_returns_empty():
             u = urls[url_idx]
             url_idx += 1
             return u
-        return None
+        return urls[-1]
 
     mock_window.get_current_url.side_effect = get_url
     mock_window.evaluate_js.return_value = "Login"
+    mock_window.get_cookies.return_value = [{"name": "JSESSIONID", "value": "redirected_session"}]
 
-    time_ctrl = TimeController(start=100.0, step=2.0)  # 2.0s ステップで即 pause_limit 超過
+    time_ctrl = TimeController(start=100.0, step=1.0)
 
     with patch("webview.create_window", return_value=mock_window):
         with patch("webview.start") as mock_start:
@@ -219,10 +221,12 @@ def test_user_closes_window_via_none_url_after_shown_returns_empty():
             mock_start.side_effect = run_watch_loop
             with patch("time.sleep"):
                 with patch("time.monotonic", side_effect=time_ctrl.monotonic):
-                    cookies = authenticate_via_webview(host="tact.ac.thers.ac.jp", pause_duration_seconds=1.0)
+                    cookies = authenticate_via_webview(host="tact.ac.thers.ac.jp", pause_duration_seconds=1.5)
 
-    assert cookies == []
+    assert len(cookies) == 1
+    assert cookies[0]["name"] == "JSESSIONID"
     assert mock_window.show.call_count == 1
+
 
 
 
