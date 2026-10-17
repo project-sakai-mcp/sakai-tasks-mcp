@@ -1,117 +1,168 @@
 # Sakai Tasks MCP
 
-大学の Sakai LMS と AI をつなぐ MCP サーバ
+Unofficial MCP server for Sakai LMS.
 
-![Sakai Tasks MCP の AI チャット連携の様子](docs/release/chat_full.png)
-
-[Web サイト版ガイドはこちら](https://project-sakai-mcp.github.io/sakai-tasks-mcp/release/)
+[日本語インストールページ](https://project-sakai-mcp.github.io/sakai-tasks-mcp/)
 
 ---
 
-## 概要
+## Overview
 
-**Sakai Tasks MCP** は、大学で利用されている Sakai LMS（京都大学 PandA、名古屋大学 TACT など）から、通知や課題の締め切り、講義資料などを取得し、Claude Desktop や Cursor などの AI アシスタントと連携するための MCP (Model Context Protocol) サーバーです。
+**Sakai Tasks MCP** enables desktop AI assistants to access Sakai LMS instances via MCP.
 
-「今週の課題の締切は？」「重要なお知らせはある？」「講義資料をダウンロードして」と AI に話しかけたら Sakai 上の情報を取得できるようにします。
+It features per-course access control to customize information disclosure to AI, along with automatic session handling that pops up a WebView login window whenever authentication is required.
 
 ---
 
-## 機能
+## Available MCP Tools
 
-AI が呼び出せる MCP ツール一覧です。
-
-| ツール名 | 説明 |
+| Tool | Description |
 | :--- | :--- |
-| `get_upcoming_deadlines` | 締切がある課題・小テストを取得し、期限順に整理して返します。 |
-| `get_course_dashboard` | 指定した講義の状況（課題、小テスト、直近のお知らせ、授業資料）を取得します。 |
-| `get_announcements` | 通知を取得します。 |
-| `get_assignments` | 課題の一覧または詳細（提出期限、指示文、添付資料など）を取得します。 |
-| `get_quizzes` | 小テスト・オンラインクイズの一覧や締切情報を取得します。 |
-| `get_calendar_events` | カレンダーに登録されたスケジュールやイベント予定を取得します。 |
-| `get_course_materials` | 講義の配布資料リンク・フォルダ一覧を取得します。 |
-| `download_material` | 講義資料や添付ファイルを指定のローカルフォルダにダウンロードします。 |
-| `list_courses` | 所属している講義一覧と講義IDを取得します。 |
-| `open_settings` | 大学ドメインの変更や講義ごとの情報開示ポリシーなどを設定する GUI 画面を起動します。 |
-| `check_auth_status` | 大学ポータルのログインセッションが有効かどうかを確認します。 |
+| `get_upcoming_deadlines` | Retrieves pending assignments and quizzes, sorted by deadline. |
+| `get_course_dashboard` | Fetches an overview of a specific course (deadlines, recent announcements, materials). |
+| `get_announcements` | Fetches announcements from courses or system-wide. |
+| `get_assignments` | Retrieves assignment lists or details (due dates, instructions, attachments). |
+| `get_quizzes` | Retrieves online quizzes and submission deadlines. |
+| `get_calendar_events` | Fetches calendar schedules and events. |
+| `get_course_materials` | Lists folders and download links for course materials. |
+| `download_material` | Downloads course materials or attachments to a local directory. |
+| `get_unread_messages_and_forums` | Retrieves unread messages and forum discussion counts with direct links. |
+| `list_courses` | Lists enrolled courses and their site IDs. |
+| `open_settings` | Opens the configuration GUI (university domain, course disclosure policies). |
+| `get_settings` | Gets current configuration settings (domain, per-course AI policies, limits). |
+| `check_auth_status` | Checks whether the login session is currently active. |
 
 ---
 
-## Windows インストール
+## Download Pre-built Binaries
 
-[Windows 版 圧縮ファイルをダウンロード](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-windows.zip)
+You can download ready-to-use packages from [GitHub Releases](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest):
+- **Windows**: [sakai-tasks-mcp-windows.zip](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-windows.zip)
+- **macOS**: [sakai-tasks-mcp-macos.tar.gz](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-macos.tar.gz)
 
-### セットアップ手順
-
-1. ダウンロードした ZIP ファイルを任意のフォルダ（例: `C:\tools` など）に解凍します。
-2. 解凍先フォルダ内の `run.bat` の絶対パスを確認します。
-   - **パスの確認方法:** エクスプローラーで解凍先フォルダを開き、`run.bat` を **右クリック** して「**パスのコピー**」を選択すると、クリップボードに絶対パスがコピーされます。
-3. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に登録します。
-   - **設定 JSON の例:**
-     ```json
-     {
-       "mcpServers": {
-         "sakai-tasks": {
-           "command": "cmd.exe",
-           "args": [
-             "/c",
-             "<あなたが解凍したrun.batファイルのパス>"
-           ]
-         }
-       }
-     }
-     ```
-     ※ パス内のバックスラッシュ（`\`）は、JSON 内では `\\` のように重ねてエスケープしてください（例: `C:\\tools\\sakai-tasks-mcp-windows\\run.bat`）。
-   - **AI に設定ファイルへの追記を依頼する場合のプロンプト例:**
-     ```text
-     あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
-     名前: sakai-tasks
-     コマンド: cmd.exe
-     引数: ["/c", "<あなたが解凍したrun.batファイルのパス>"]
-     ```
-4. AI アプリを再起動します。
-5. AI のチャット欄で「**初期設定を開いて**」と指示します。
-6. 設定画面が開いたら、所属大学のドメイン（例: `tact.ac.thers.ac.jp` や `panda.ecs.kyoto-u.ac.jp` 等）を登録し、「保存して閉じる」を押します。
-7. 設定画面が閉じて少しあとにログイン画面が開くので、そこでログインを完了させてください。
+Extract the archive to any directory on your computer.
 
 ---
 
-## macOS インストール
+## Configuration Examples
 
-[macOS 版 圧縮ファイルをダウンロード](https://github.com/project-sakai-mcp/sakai-tasks-mcp/releases/latest/download/sakai-tasks-mcp-macos.tar.gz)
+Add `sakai-tasks` to your AI client's MCP configuration. Replace `<PATH_TO_EXTRACTED_FOLDER>` with the absolute path where you extracted the release package.
 
-### セットアップ手順
+### 1. Claude Desktop
 
-1. ダウンロードしたアーカイブ（`.tar.gz`）を任意のフォルダ（例: `/Users/username/tools` や `~/tools` など）に展開（解凍）します。
-2. 解凍先フォルダ内の `run.sh` の絶対パスを確認します。
-   - **パスの確認方法:** Finder で解凍先フォルダを開き、`run.sh` を **右クリック** して「**パス名をコピー**」を選択します。
-3. お使いの AI アプリ（Claude Desktop, Cursor 等）の MCP 設定に登録します。
-   - **設定 JSON の例:**
-     ```json
-     {
-       "mcpServers": {
-         "sakai-tasks": {
-           "command": "<あなたが解凍したrun.shファイルのパス>",
-           "args": []
-         }
-       }
-     }
-     ```
-   - **AI に設定ファイルへの追記を依頼する場合のプロンプト例:**
-     ```text
-     あなたのMCP設定ファイルに、以下のMCPサーバーを追加してください。
-     名前: sakai-tasks
-     コマンド: <あなたが解凍したrun.shファイルのパス>
-     ```
-4. AI アプリを再起動します。
-5. AI のチャット欄で「**初期設定を開いて**」と指示します。
-6. 設定画面が開いたら、所属大学のドメイン（例: `tact.ac.thers.ac.jp` や `panda.ecs.kyoto-u.ac.jp` 等）を登録し、「保存して閉じる」を押します。
-7. 設定画面が閉じて少しあとにログイン画面が開くので、そこでログインを完了させてください。
+**Configuration File Location:**
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+#### Windows
+```json
+{
+  "mcpServers": {
+    "sakai-tasks": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "C:\\path\\to\\sakai-tasks-mcp\\run.bat"
+      ]
+    }
+  }
+}
+```
+
+#### macOS
+```json
+{
+  "mcpServers": {
+    "sakai-tasks": {
+      "command": "/path/to/sakai-tasks-mcp/run.sh",
+      "args": []
+    }
+  }
+}
+```
 
 ---
 
-## 📚 ドキュメント & 開発者向け情報
+### 2. Cursor
 
-- **[全体設計書 (`docs/architecture.md`)](docs/architecture.md)** / **[Web 版](https://project-sakai-mcp.github.io/sakai-tasks-mcp/)**
-- **[開発者ガイド (`docs/guide.md`)](docs/guide.md)**
-- **[Sakai API リファレンス (`docs/sakai_api_reference.md`)](docs/sakai_api_reference.md)**
-- **[認証・セッション仕様書 (`docs/auth_and_session_spec.md`)](docs/auth_and_session_spec.md)**
+**Configuration File Location:**
+- **Project Scope**: `.cursor/mcp.json` in your workspace root
+- **Global Scope**:
+  - **Windows**: `%USERPROFILE%\.cursor\mcp.json`
+  - **macOS / Linux**: `~/.cursor/mcp.json`
+
+#### Windows
+```json
+{
+  "mcpServers": {
+    "sakai-tasks": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "C:\\path\\to\\sakai-tasks-mcp\\run.bat"
+      ]
+    }
+  }
+}
+```
+
+#### macOS
+```json
+{
+  "mcpServers": {
+    "sakai-tasks": {
+      "command": "/path/to/sakai-tasks-mcp/run.sh",
+      "args": []
+    }
+  }
+}
+```
+
+---
+
+### 3. Google Antigravity
+
+**Configuration File Location:**
+- `~/.gemini/config/mcp_config.json` (or `plugins/<plugin_name>/mcp_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "sakai-tasks": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "C:\\path\\to\\sakai-tasks-mcp\\run.bat"
+      ]
+    }
+  }
+}
+```
+*(On macOS, use `"command": "/path/to/sakai-tasks-mcp/run.sh"` with `"args": []`)*
+
+---
+
+## Initial Setup & Authentication
+
+1. Restart your AI client after saving the configuration.
+2. In the AI chat prompt, type:
+   > *"Open initial setup"* or *"Open settings"*
+3. The configuration GUI will pop up. Enter your university's Sakai domain or select it from the suggestions list.
+4. Changes are saved automatically. Close the configuration window.
+5. Ask your AI assistant any Sakai-related question.
+6. A login window will automatically pop up. Log in with your university account credentials.
+7. Once logged in, the window closes automatically, your session cookies are securely stored in your OS keyring, and the AI will proceed to answer your request.
+
+---
+
+## Contributing & Bug Reports
+
+Contributions and suggestions are warmly welcomed!
+- For setup instructions, testing guidelines, and PR workflow, see [CONTRIBUTING.md](CONTRIBUTING.md).
+- To report bugs or propose improvements, please submit an issue using our [Bug Report Template](https://github.com/project-sakai-mcp/sakai-tasks-mcp/issues/new?template=bug_report.yml).
+
+---
+
+## License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
