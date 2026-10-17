@@ -1,12 +1,12 @@
 """Unit tests for SakaiClient, timeouts, and error handling."""
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
+
 import httpx
 import pytest
 
 from src.client import SakaiClient, SakaiTimeoutError
-from src.config import Config, AppConfigData
+from src.config import Config
 from src.gui.api import SettingsApi
 from src.gui.data_builder import SettingsUIData
 

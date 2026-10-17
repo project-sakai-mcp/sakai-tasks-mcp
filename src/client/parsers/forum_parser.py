@@ -1,6 +1,7 @@
 """Sakai /api/users/me/forums parser."""
 
 from typing import Any
+
 from src.models import UnreadForumMessage
 
 

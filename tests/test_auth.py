@@ -1,11 +1,8 @@
 """Unit tests for webview authentication and URL update pause duration detection."""
 
 from unittest.mock import MagicMock, patch
-from urllib.parse import urlparse
-import pytest
 
 from src.auth.webview_auth import authenticate_via_webview
-from src.config import Config
 
 
 class TimeController:

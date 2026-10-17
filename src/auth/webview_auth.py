@@ -13,6 +13,7 @@ import webview
 
 from src.config import Config
 
+
 def authenticate_via_webview(
     host: str | None = None,
     profile_dir: Path = Config.WEBVIEW_DATA_DIR,

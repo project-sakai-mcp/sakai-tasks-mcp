@@ -1,8 +1,9 @@
 """Window launch and lifecycle management module for settings GUI."""
 
 import asyncio
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import webview
 
 from src.config import Config
@@ -30,7 +31,7 @@ def show_settings_window() -> None:
     api = SettingsApi(initial_data=ui_data)
 
     # 3. 設定画面ウィンドウをメインスレッドで直接生成して起動
-    window = webview.create_window(
+    webview.create_window(
         title="Sakai Tasks MCP 設定",
         url=template_path.as_uri(),
         js_api=api,

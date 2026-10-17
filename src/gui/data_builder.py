@@ -1,9 +1,9 @@
 """UI data builder module for Sakai settings."""
 
-import asyncio
 from pydantic import BaseModel
-from src.config import AIPolicyMode, Config
+
 from src.client.sakai_client import SakaiClient
+from src.config import AIPolicyMode, Config
 
 
 class CourseSettingItem(BaseModel):

@@ -6,7 +6,6 @@ docs/architecture.md 7.1.3 に準拠
 """
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys

@@ -2,9 +2,9 @@
 
 import argparse
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 # Ensure project root is in sys.path for direct script execution
@@ -14,8 +14,8 @@ if _project_root not in sys.path:
 
 from mcp.server.fastmcp import FastMCP
 
-from src.client import SakaiClient
 from src.auth import cookie_storage, session_checker
+from src.client import SakaiClient
 from src.client.parsers.base import parse_datetime
 from src.config import Config
 from src.models import (
@@ -37,7 +37,6 @@ from src.policy import (
     filter_tasks,
     filter_unread_forum_messages,
 )
-
 
 SERVER_INSTRUCTIONS = """
 大学 LMS「Sakai (TACT)」から課題・小テスト・お知らせ・講義資料を安全に取得・管理するための MCP サーバーです。

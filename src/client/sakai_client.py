@@ -1,25 +1,25 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
 import logging
-from pathlib import Path
 import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
 import httpx
 
-from src.config import Config
 from src.auth import get_valid_cookies
 from src.client import endpoints
 from src.client.exceptions import SakaiTimeoutError
-from src.client.parsers.favorite_parser import parse_favorite_courses
-from src.client.parsers.course_parser import parse_courses
-from src.client.parsers.assignment_parser import parse_assignments
-from src.client.parsers.quiz_parser import parse_quizzes
 from src.client.parsers.announcement_parser import parse_announcements
+from src.client.parsers.assignment_parser import parse_assignments
 from src.client.parsers.calendar_parser import parse_calendar_events
 from src.client.parsers.content_parser import parse_course_contents
+from src.client.parsers.course_parser import parse_courses
+from src.client.parsers.favorite_parser import parse_favorite_courses
 from src.client.parsers.forum_parser import parse_unread_forum_messages
-
+from src.client.parsers.quiz_parser import parse_quizzes
+from src.config import Config
 from src.models import (
     Announcement,
     CalendarEvent,
@@ -29,7 +29,6 @@ from src.models import (
     SakaiTask,
     UnreadForumMessage,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -537,15 +536,15 @@ class SakaiClient:
         )
         if start_date:
             if start_date.tzinfo is None:
-                start_date = start_date.replace(tzinfo=timezone.utc)
+                start_date = start_date.replace(tzinfo=UTC)
             else:
-                start_date = start_date.astimezone(timezone.utc)
+                start_date = start_date.astimezone(UTC)
             events = [e for e in events if e.start_time and e.start_time >= start_date]
         if end_date:
             if end_date.tzinfo is None:
-                end_date = end_date.replace(tzinfo=timezone.utc)
+                end_date = end_date.replace(tzinfo=UTC)
             else:
-                end_date = end_date.astimezone(timezone.utc)
+                end_date = end_date.astimezone(UTC)
             events = [e for e in events if e.start_time and e.start_time <= end_date]
         return events
 
@@ -598,7 +597,7 @@ class SakaiClient:
         """
         if days is None:
             days = Config.DEFAULT_DEADLINE_DAYS
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         limit_date = now + timedelta(days=days)
 
         assignments_task = self.get_assignments(favorites_only=favorites_only, include_details=False)
@@ -614,7 +613,7 @@ class SakaiClient:
                 if now <= t.due_date <= limit_date:
                     upcoming.append(t)
 
-        upcoming.sort(key=lambda x: x.due_date or datetime.max.replace(tzinfo=timezone.utc))
+        upcoming.sort(key=lambda x: x.due_date or datetime.max.replace(tzinfo=UTC))
         return upcoming
 
     async def get_unread_forum_messages(

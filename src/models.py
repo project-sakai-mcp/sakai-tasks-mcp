@@ -1,6 +1,8 @@
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+
 from pydantic import BaseModel, ConfigDict, Field
+
 
 class TaskType(str, Enum):
     """タスク種別"""

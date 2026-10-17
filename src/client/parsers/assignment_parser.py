@@ -1,6 +1,6 @@
 """Assignment parser from Sakai /direct/assignment/my.json."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.client import endpoints
@@ -41,7 +41,7 @@ def parse_assignments(
         collection = data.get("assignment_collection", [])
 
     tasks: list[SakaiTask] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for item in collection:
         # 下書きは除外

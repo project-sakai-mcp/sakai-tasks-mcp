@@ -1,12 +1,9 @@
-import json
 import os
-import sys
 from enum import Enum
 from pathlib import Path
-from typing import Any
+
 from platformdirs import user_data_dir
 from pydantic import BaseModel, Field
-
 
 # ==============================================================================
 # 講義別 AI 利用ポリシー定義
@@ -122,7 +119,7 @@ class Config:
             data = AppConfigData()
         else:
             try:
-                with open(cls.CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
+                with open(cls.CONFIG_FILE_PATH, encoding="utf-8") as f:
                     data = AppConfigData.model_validate_json(f.read())
                 cls._last_loaded_mtime = cls.CONFIG_FILE_PATH.stat().st_mtime
             except Exception:
