@@ -5,7 +5,7 @@
 
 Unofficial MCP server for Sakai LMS.
 
-[日本語インストールページ](https://project-sakai-mcp.github.io/sakai-tasks-mcp/)
+[日本語インストールページ](https://sayt25606-rgb.github.io/sakai-tasks-mcp/)
 
 ---
 
