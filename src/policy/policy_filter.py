@@ -14,17 +14,17 @@ from src.models import (
     UnreadForumMessage,
 )
 
-MASKED_INSTRUCTION_TEXT = "[講義ポリシー (SCHEDULE_ONLY) により指示文は非表示です]"
-MASKED_ANNOUNCEMENT_TEXT = "[講義ポリシー (SCHEDULE_ONLY) により本文は非表示です]"
+MASKED_INSTRUCTION_TEXT = "[Instructions hidden by course policy (SCHEDULE_ONLY)]"
+MASKED_ANNOUNCEMENT_TEXT = "[Content hidden by course policy (SCHEDULE_ONLY)]"
 
 
 def filter_courses(courses: list[CourseSite]) -> list[CourseSite]:
-    """BLOCKED の講義を除外して返す。"""
+    """Filter out BLOCKED courses."""
     return [c for c in courses if Config.get_course_policy(c.id) != AIPolicyMode.BLOCKED]
 
 
 def filter_tasks(tasks: list[SakaiTask]) -> list[SakaiTask]:
-    """ポリシーに応じてタスクを除外・マスキングして返す。"""
+    """Filter and mask tasks according to course policies."""
     result: list[SakaiTask] = []
     for task in tasks:
         policy = Config.get_course_policy(task.site_id)
@@ -41,7 +41,7 @@ def filter_tasks(tasks: list[SakaiTask]) -> list[SakaiTask]:
                 )
             )
         elif policy == AIPolicyMode.TEXT_ONLY:
-            # 添付ファイルのダウンロード URL のみ消去 (None にマスク)
+            # Mask download URLs of attachments (set to None)
             masked_attachments = [
                 att.model_copy(update={"url": None}) for att in task.attachments
             ]
@@ -52,7 +52,7 @@ def filter_tasks(tasks: list[SakaiTask]) -> list[SakaiTask]:
 
 
 def filter_announcements(announcements: list[Announcement]) -> list[Announcement]:
-    """ポリシーに応じてお知らせを除外・マスキングして返す。"""
+    """Filter and mask announcements according to course policies."""
     result: list[Announcement] = []
     for item in announcements:
         policy = Config.get_course_policy(item.site_id)
@@ -68,7 +68,7 @@ def filter_announcements(announcements: list[Announcement]) -> list[Announcement
                 )
             )
         elif policy == AIPolicyMode.TEXT_ONLY:
-            # 添付ファイルのダウンロード URL のみ消去 (None にマスク)
+            # Mask download URLs of attachments (set to None)
             masked_attachments = [
                 att.model_copy(update={"url": None}) for att in item.attachments
             ]
@@ -79,7 +79,7 @@ def filter_announcements(announcements: list[Announcement]) -> list[Announcement
 
 
 def filter_calendar_events(events: list[CalendarEvent]) -> list[CalendarEvent]:
-    """ポリシーに応じてカレンダーイベントを除外・マスキングして返す。"""
+    """Filter and mask calendar events according to course policies."""
     result: list[CalendarEvent] = []
     for ev in events:
         if ev.site_id:
@@ -97,14 +97,14 @@ def filter_calendar_events(events: list[CalendarEvent]) -> list[CalendarEvent]:
 
 
 def filter_course_materials(materials: list[CourseMaterial], site_id: str) -> list[CourseMaterial]:
-    """ポリシーに応じて授業資料一覧を除外・マスキングして返す。"""
+    """Filter and mask course materials according to course policies."""
     policy = Config.get_course_policy(site_id)
     if policy == AIPolicyMode.BLOCKED:
-        raise ValueError(f"指定講義 '{site_id}' は存在しないか利用できません。")
+        raise ValueError(f"Specified course '{site_id}' does not exist or is unavailable.")
     elif policy == AIPolicyMode.SCHEDULE_ONLY:
         return []
     elif policy == AIPolicyMode.TEXT_ONLY:
-        # ダウンロード URL のみ消去して一覧メタデータ（ファイル名等）のみ提供
+        # Strip download URLs to only provide metadata (filenames, etc.)
         return [m.model_copy(update={"url": None}) for m in materials]
     return materials
 
@@ -112,7 +112,7 @@ def filter_course_materials(materials: list[CourseMaterial], site_id: str) -> li
 def filter_unread_forum_messages(
     items: list[UnreadForumMessage],
 ) -> list[UnreadForumMessage]:
-    """ポリシーに応じて未読メッセージ・フォーラム情報を除外して返す。"""
+    """Filter unread messages and forum items according to course policies."""
     return [
         item for item in items
         if Config.get_course_policy(item.site_id) != AIPolicyMode.BLOCKED
@@ -120,10 +120,10 @@ def filter_unread_forum_messages(
 
 
 def filter_dashboard(dashboard: CourseDashboard) -> CourseDashboard:
-    """指定講義のダッシュボードにポリシーマスキングを一括適用する。"""
+    """Apply policy masking to a course dashboard in bulk."""
     policy = Config.get_course_policy(dashboard.site_id)
     if policy == AIPolicyMode.BLOCKED:
-        raise ValueError(f"講義 '{dashboard.site_id}' は存在しないか、アクセスが制限されています。")
+        raise ValueError(f"Course '{dashboard.site_id}' does not exist or access is restricted.")
 
     return CourseDashboard(
         site_id=dashboard.site_id,
@@ -145,23 +145,21 @@ _SAKAI_RESOURCE_PATTERN = re.compile(r"^/access/content/(?:group|attachment)/([^
 
 def check_download_allowed_by_url(url: str) -> None:
     """
-    URL パスから講義 site_id を正規表現で特定し、ポリシーで許可されていない場合は例外を送出する。
-    未設定講義 (Config.POLICIES 未登録) の場合も Config.get_course_policy() により
-    自動的にデフォルト (TEXT_ONLY: 強 / DL禁止) が適用されるため、Secure by Default が完全に担保される。
+    Extract course site_id from URL path and raise PermissionError if download is not allowed by policy.
+    Unconfigured courses default to TEXT_ONLY (DL prohibited) to ensure Secure by Default.
     """
     path = urlparse(url).path
     match = _SAKAI_RESOURCE_PATTERN.match(path)
 
     if not match:
-        # Sakai の講義リソース形式でない場合は安全側に倒して拒否
-        raise PermissionError(f"URL '{url}' から対象講義を特定できないため、ダウンロードを制限しました。")
+        raise PermissionError(f"Download restricted because the target course could not be identified from URL '{url}'.")
 
     site_id = match.group(1)
     policy = Config.get_course_policy(site_id)
 
     if policy == AIPolicyMode.BLOCKED:
-        raise PermissionError(f"指定されたリソース '{url}' にはアクセスできません。")
+        raise PermissionError(f"Access to the specified resource '{url}' is denied.")
     elif policy in (AIPolicyMode.SCHEDULE_ONLY, AIPolicyMode.TEXT_ONLY):
         raise PermissionError(
-            f"講義 '{site_id}' は現在のポリシー ({policy.value}) によりファイルのダウンロードが禁止されています。"
+            f"Downloading files from course '{site_id}' is prohibited under the current policy ({policy.value})."
         )

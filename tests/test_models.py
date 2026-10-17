@@ -208,17 +208,17 @@ def test_filter_course_materials_and_downloads(monkeypatch):
     invalid_url = "https://example.com/external/file.pdf"
 
     # 不正URL
-    with pytest.raises(PermissionError, match="特定できないため"):
+    with pytest.raises(PermissionError, match="could not be identified"):
         check_download_allowed_by_url(invalid_url)
 
     # BLOCKED
     monkeypatch.setattr(Config, "get_course_policy", lambda _: AIPolicyMode.BLOCKED)
-    with pytest.raises(PermissionError, match="アクセスできません"):
+    with pytest.raises(PermissionError, match="is denied"):
         check_download_allowed_by_url(url)
 
     # TEXT_ONLY
     monkeypatch.setattr(Config, "get_course_policy", lambda _: AIPolicyMode.TEXT_ONLY)
-    with pytest.raises(PermissionError, match="ダウンロードが禁止されています"):
+    with pytest.raises(PermissionError, match="is prohibited"):
         check_download_allowed_by_url(url)
 
     # ALLOW_ALL -> 成功

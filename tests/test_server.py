@@ -164,7 +164,7 @@ async def test_download_material_tool_policy_blocked(mock_sakai_client, monkeypa
     monkeypatch.setattr(Config, "get_course_policy", lambda _: AIPolicyMode.TEXT_ONLY)
     url = "https://tact.ac.thers.ac.jp/access/content/group/c1/slide.pdf"
 
-    with pytest.raises(PermissionError, match="ダウンロードが禁止されています"):
+    with pytest.raises(PermissionError, match="is prohibited"):
         await download_material(url=url, save_path="/tmp/slide.pdf")
 
 
