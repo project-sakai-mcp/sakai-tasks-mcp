@@ -11,7 +11,9 @@ from src.models import (
     CourseMaterial,
     CourseSite,
     SakaiTask,
+    UnreadForumMessage,
 )
+
 
 MASKED_INSTRUCTION_TEXT = "[講義ポリシー (SCHEDULE_ONLY) により指示文は非表示です]"
 MASKED_ANNOUNCEMENT_TEXT = "[講義ポリシー (SCHEDULE_ONLY) により本文は非表示です]"
@@ -108,6 +110,16 @@ def filter_course_materials(materials: list[CourseMaterial], site_id: str) -> li
     return materials
 
 
+def filter_unread_forum_messages(
+    items: list[UnreadForumMessage],
+) -> list[UnreadForumMessage]:
+    """ポリシーに応じて未読メッセージ・フォーラム情報を除外して返す。"""
+    return [
+        item for item in items
+        if Config.get_course_policy(item.site_id) != AIPolicyMode.BLOCKED
+    ]
+
+
 def filter_dashboard(dashboard: CourseDashboard) -> CourseDashboard:
     """指定講義のダッシュボードにポリシーマスキングを一括適用する。"""
     policy = Config.get_course_policy(dashboard.site_id)
@@ -121,7 +133,12 @@ def filter_dashboard(dashboard: CourseDashboard) -> CourseDashboard:
         quizzes=filter_tasks(dashboard.quizzes),
         announcements=filter_announcements(dashboard.announcements),
         materials=filter_course_materials(dashboard.materials, dashboard.site_id),
+        unread_messages_count=dashboard.unread_messages_count,
+        unread_forums_count=dashboard.unread_forums_count,
+        message_url=dashboard.message_url,
+        forum_url=dashboard.forum_url,
     )
+
 
 
 _SAKAI_RESOURCE_PATTERN = re.compile(r"^/access/content/(?:group|attachment)/([^/]+)/")

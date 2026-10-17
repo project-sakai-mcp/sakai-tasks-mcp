@@ -103,3 +103,82 @@ def test_parse_datetime_compact_formats():
     # 17桁 (YYYYMMDDhhmmssmmm)
     dt_17 = parse_datetime("20260918112848381")
     assert dt_17 == datetime(2026, 9, 18, 11, 28, 48, 381000, tzinfo=timezone.utc)
+
+
+def test_parse_unread_forum_messages_list_format():
+    from src.client.parsers.forum_parser import parse_unread_forum_messages
+
+    sample_data = [
+        {
+            "messageUrl": "/portal/directtool/8fa8f830-9d75-4055-a5cd-325f3464e060",
+            "messageCount": 0,
+            "siteUrl": "https://tact.ac.thers.ac.jp/portal/site/g_2026_2ZSI331240",
+            "siteTitle": "自然科学総合(メタバース文化論)(2026年度後学期/火５限)",
+            "siteId": "g_2026_2ZSI331240",
+            "forumCount": 0,
+        },
+        {
+            "messageUrl": "/portal/directtool/a2f7da5b-ad89-4b4f-ad78-ce52cec7772e",
+            "messageCount": 2,
+            "siteUrl": "https://tact.ac.thers.ac.jp/portal/site/n_2025_0013212",
+            "siteTitle": "物理学基礎Ⅰ(2025年度春/水２限)",
+            "siteId": "n_2025_0013212",
+            "forumUrl": "/portal/directtool/bdc70d1e-c918-4dd2-9f96-d7684e98fa89",
+            "forumCount": 132,
+        },
+    ]
+
+    items = parse_unread_forum_messages(sample_data, host="tact.ac.thers.ac.jp")
+    assert len(items) == 2
+
+    # 1件目: forumUrl なし、未読 0
+    assert items[0].site_id == "g_2026_2ZSI331240"
+    assert items[0].site_name == "自然科学総合(メタバース文化論)(2026年度後学期/火５限)"
+    assert items[0].unread_messages_count == 0
+    assert items[0].unread_forums_count == 0
+    assert items[0].message_url == "https://tact.ac.thers.ac.jp/portal/directtool/8fa8f830-9d75-4055-a5cd-325f3464e060"
+    assert items[0].forum_url is None
+    assert items[0].site_url == "https://tact.ac.thers.ac.jp/portal/site/g_2026_2ZSI331240"
+
+    # 2件目: forumUrl あり、未読あり
+    assert items[1].site_id == "n_2025_0013212"
+    assert items[1].site_name == "物理学基礎Ⅰ(2025年度春/水２限)"
+    assert items[1].unread_messages_count == 2
+    assert items[1].unread_forums_count == 132
+    assert items[1].message_url == "https://tact.ac.thers.ac.jp/portal/directtool/a2f7da5b-ad89-4b4f-ad78-ce52cec7772e"
+    assert items[1].forum_url == "https://tact.ac.thers.ac.jp/portal/directtool/bdc70d1e-c918-4dd2-9f96-d7684e98fa89"
+
+
+def test_parse_unread_forum_messages_dict_format():
+    from src.client.parsers.forum_parser import parse_unread_forum_messages
+
+    sample_dict = {
+        "forums": [
+            {
+                "siteId": "test_site_1",
+                "siteTitle": "テスト講義",
+                "messageCount": 3,
+                "forumCount": 5,
+                "messageUrl": "/portal/directtool/msg-123",
+                "forumUrl": "/portal/directtool/forum-456",
+            }
+        ]
+    }
+
+    items = parse_unread_forum_messages(sample_dict, host="example.edu")
+    assert len(items) == 1
+    assert items[0].site_id == "test_site_1"
+    assert items[0].unread_messages_count == 3
+    assert items[0].unread_forums_count == 5
+    assert items[0].message_url == "https://example.edu/portal/directtool/msg-123"
+    assert items[0].forum_url == "https://example.edu/portal/directtool/forum-456"
+
+
+def test_parse_unread_forum_messages_empty_or_invalid():
+    from src.client.parsers.forum_parser import parse_unread_forum_messages
+
+    assert parse_unread_forum_messages([], host="example.edu") == []
+    assert parse_unread_forum_messages({}, host="example.edu") == []
+    assert parse_unread_forum_messages(None, host="example.edu") == []
+    assert parse_unread_forum_messages([{"invalid": "item"}], host="example.edu") == []
+
