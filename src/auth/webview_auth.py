@@ -3,6 +3,7 @@
     webviewの違いの問題があります。
     なくても動くので一回未実装のまま置いておいてあとで調整する方針を採用しました。
 """
+import threading
 import time
 from http.cookies import BaseCookie, Morsel
 from pathlib import Path
@@ -55,22 +56,21 @@ def authenticate_via_webview(
             and not url.startswith(login_url)
         )
 
-    def is_stale_or_idp_error(url: str, title: str) -> bool:
+    def is_stale_or_idp_error(url: str) -> bool:
         """
         外部 IdP / Shibboleth 上で認証処理がタイムアウトした
         可能性がある状態を検出する。
         """
+        if not isinstance(url, str) or not url:
+            return False
+
         netloc = urlparse(url).netloc
 
         # Sakai 自身のページなら対象外
         if not netloc or netloc == host:
             return False
 
-        return (
-            "/POST/SSO" in url
-            or "Stale Request" in title
-            or "エラー" in title
-        )
+        return "/POST/SSO" in url
 
     def normalize_cookies(raw_cookies: Any) -> list[dict[str, Any]]:
         """
@@ -147,6 +147,8 @@ def authenticate_via_webview(
 
         return result
 
+    window_closed = threading.Event()
+
     def watch_loop(window: webview.Window) -> None:
         nonlocal cookies_result
 
@@ -160,7 +162,9 @@ def authenticate_via_webview(
         while True:
             time.sleep(0.2)
 
-            # ユーザーがウィンドウを閉じたか検知 (pywebview イベント)
+            # ユーザーがウィンドウを閉じたか検知
+            if window_closed.is_set():
+                return
             closed_event = getattr(getattr(window, "events", None), "closed", None)
             if closed_event and hasattr(closed_event, "is_set") and closed_event.is_set() is True:
                 return
@@ -173,11 +177,6 @@ def authenticate_via_webview(
             except Exception:
                 # ユーザーがウィンドウを閉じた場合など
                 return
-
-            try:
-                title = window.evaluate_js("document.title") or ""
-            except Exception:
-                title = ""
 
             # 1. ログイン成功
             if is_login_success(url):
@@ -192,10 +191,10 @@ def authenticate_via_webview(
 
                 return
 
-            # 2. Shibboleth / IdP タイムアウト救済
+            # 2. Shibboleth / IdP タイムアウト救済 (URL のみで判定し evaluate_js によるデッドロックを防止)
             if (
                 not retried_stale
-                and is_stale_or_idp_error(url, title)
+                and is_stale_or_idp_error(url)
             ):
                 retried_stale = True
 
@@ -248,6 +247,11 @@ def authenticate_via_webview(
         height=Config.WEBVIEW_WINDOW_HEIGHT,
         hidden=True,
     )
+
+    try:
+        window.events.closed += lambda: window_closed.set()
+    except Exception:
+        pass
 
     # TODO:
     # initial_cookies の WebView への明示的な注入は、

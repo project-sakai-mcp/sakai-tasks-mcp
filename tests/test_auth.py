@@ -169,7 +169,9 @@ def test_user_closes_window_returns_empty():
 def test_user_closes_window_via_closed_event_returns_empty():
     """ユーザーが[✕]で閉じて events.closed がセットされた場合、即座に空リストが返ることを検証"""
     mock_window = MagicMock()
+    mock_window.events.closed.__iadd__.return_value = mock_window.events.closed
     mock_window.events.closed.is_set.return_value = True
+    mock_window.get_current_url.return_value = ""
 
     with patch("webview.create_window", return_value=mock_window):
         with patch("webview.start") as mock_start:
