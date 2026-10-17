@@ -635,7 +635,7 @@ class SakaiClient:
         items = parse_unread_forum_messages(data, host=self.host)
 
         if favorites_only:
-            favorite_courses = await self.get_favorite_courses()
+            favorite_courses = await self.get_courses(favorites_only=True)
             favorite_ids = {c.id for c in favorite_courses}
             items = [item for item in items if item.site_id in favorite_ids]
 

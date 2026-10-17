@@ -197,7 +197,7 @@ async def test_get_unread_forum_messages_filtering():
     ]
 
     client._get_json = AsyncMock(return_value=sample_api_response)
-    client.get_favorite_courses = AsyncMock(
+    client.get_courses = AsyncMock(
         return_value=[
             CourseSite(id="site_fav_1", name="お気に入り講義1", is_favorite=True),
             CourseSite(id="site_fav_2", name="お気に入り講義2", is_favorite=True),
