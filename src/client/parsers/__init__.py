@@ -14,6 +14,7 @@ from src.client.parsers.course_parser import (
     parse_courses,
 )
 from src.client.parsers.favorite_parser import parse_favorite_courses
+from src.client.parsers.forum_parser import parse_unread_forum_messages
 from src.client.parsers.quiz_parser import parse_quizzes
 
 __all__ = [
@@ -28,4 +29,6 @@ __all__ = [
     "parse_announcements",
     "parse_calendar_events",
     "parse_course_contents",
+    "parse_unread_forum_messages",
 ]
+

@@ -10,6 +10,7 @@ from src.policy.policy_filter import (
     filter_courses,
     filter_dashboard,
     filter_tasks,
+    filter_unread_forum_messages,
 )
 
 __all__ = [
@@ -21,5 +22,7 @@ __all__ = [
     "filter_calendar_events",
     "filter_course_materials",
     "filter_dashboard",
+    "filter_unread_forum_messages",
     "check_download_allowed_by_url",
 ]
+

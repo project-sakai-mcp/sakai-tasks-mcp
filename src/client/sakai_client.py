@@ -18,6 +18,7 @@ from src.client.parsers.quiz_parser import parse_quizzes
 from src.client.parsers.announcement_parser import parse_announcements
 from src.client.parsers.calendar_parser import parse_calendar_events
 from src.client.parsers.content_parser import parse_course_contents
+from src.client.parsers.forum_parser import parse_unread_forum_messages
 
 from src.models import (
     Announcement,
@@ -26,7 +27,9 @@ from src.models import (
     CourseMaterial,
     CourseSite,
     SakaiTask,
+    UnreadForumMessage,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -614,12 +617,40 @@ class SakaiClient:
         upcoming.sort(key=lambda x: x.due_date or datetime.max.replace(tzinfo=timezone.utc))
         return upcoming
 
+    async def get_unread_forum_messages(
+        self,
+        site_id: str | None = None,
+        favorites_only: bool = True,
+    ) -> list[UnreadForumMessage]:
+        """
+        講義の未読メッセージおよび未読フォーラム件数一覧を取得する。
+
+        Args:
+            site_id: 特定の講義サイト ID で絞り込む場合は指定
+            favorites_only: True の場合はお気に入り講義のみ対象 (デフォルト: True)
+
+        Returns:
+            list[UnreadForumMessage]: 各講義の未読件数・URL情報一覧
+        """
+        data = await self._get_json(endpoints.USERS_ME_FORUMS, default=[])
+        items = parse_unread_forum_messages(data, host=self.host)
+
+        if favorites_only:
+            favorite_courses = await self.get_favorite_courses()
+            favorite_ids = {c.id for c in favorite_courses}
+            items = [item for item in items if item.site_id in favorite_ids]
+
+        if site_id is not None:
+            items = [item for item in items if item.site_id == site_id]
+
+        return items
+
     async def get_course_dashboard(
         self,
         site_id: str,
     ) -> CourseDashboard:
         """
-        指定講義の総合状況（課題・小テスト・直近お知らせ・授業資料）を並行一括取得してサマリーを生成する。
+        指定講義の総合状況（課題・小テスト・直近お知らせ・授業資料・未読メッセージ/フォーラム）を並行一括取得してサマリーを生成する。
 
         Args:
             site_id: 講義サイト ID (必須)
@@ -634,13 +665,17 @@ class SakaiClient:
         quizzes_task = self.get_quizzes(site_id=site_id)
         announcements_task = self.get_announcements(site_id=site_id, n=5)
         materials_task = self.get_course_materials(site_id=site_id)
+        unread_task = self.get_unread_forum_messages(site_id=site_id, favorites_only=False)
 
-        assignments, quizzes, announcements, materials = await asyncio.gather(
+        assignments, quizzes, announcements, materials, unread_list = await asyncio.gather(
             assignments_task,
             quizzes_task,
             announcements_task,
             materials_task,
+            unread_task,
         )
+
+        unread_info = unread_list[0] if unread_list else None
 
         return CourseDashboard(
             site_id=site_id,
@@ -649,7 +684,12 @@ class SakaiClient:
             quizzes=quizzes,
             announcements=announcements,
             materials=materials,
+            unread_messages_count=unread_info.unread_messages_count if unread_info else 0,
+            unread_forums_count=unread_info.unread_forums_count if unread_info else 0,
+            message_url=unread_info.message_url if unread_info else None,
+            forum_url=unread_info.forum_url if unread_info else None,
         )
+
 
     async def download_material(
         self,

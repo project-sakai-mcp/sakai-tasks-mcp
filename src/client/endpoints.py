@@ -13,6 +13,7 @@ CALENDAR_MY = "/direct/calendar/my.json"                # カレンダー予定�
 ANNOUNCEMENT_USER = "/direct/announcement/user.json"    # 全講義のお知らせ一覧 (?d=日数)
 
 ATTACHMENT_ACCESS_PREFIX = "/access/content/attachment" # 添付ファイルダウンロード用 URL プレフィックス
+USERS_ME_FORUMS = "/api/users/me/forums"                 # 未読メッセージ・フォーラム一覧 (JSON)
 
 
 # ==============================================================================

@@ -164,3 +164,93 @@ def test_settings_api_saves_request_timeout(tmp_path, monkeypatch):
     result = api.save_settings(payload)
     assert result is True
     assert Config.REQUEST_TIMEOUT == 45.0
+
+
+@pytest.mark.asyncio
+async def test_get_unread_forum_messages_filtering():
+    """get_unread_forum_messages の favorites_only および site_id 絞り込みを検証"""
+    from src.models import CourseSite
+
+    client = SakaiClient(host="tact.ac.thers.ac.jp")
+
+    sample_api_response = [
+        {
+            "siteId": "site_fav_1",
+            "siteTitle": "お気に入り講義1",
+            "messageCount": 2,
+            "forumCount": 0,
+            "messageUrl": "/portal/directtool/m1",
+        },
+        {
+            "siteId": "site_fav_2",
+            "siteTitle": "お気に入り講義2",
+            "messageCount": 0,
+            "forumCount": 5,
+            "forumUrl": "/portal/directtool/f2",
+        },
+        {
+            "siteId": "site_non_fav",
+            "siteTitle": "過去講義",
+            "messageCount": 10,
+            "forumCount": 10,
+        },
+    ]
+
+    client._get_json = AsyncMock(return_value=sample_api_response)
+    client.get_favorite_courses = AsyncMock(
+        return_value=[
+            CourseSite(id="site_fav_1", name="お気に入り講義1", is_favorite=True),
+            CourseSite(id="site_fav_2", name="お気に入り講義2", is_favorite=True),
+        ]
+    )
+
+    # 1. favorites_only=True (デフォルト)
+    fav_items = await client.get_unread_forum_messages()
+    assert len(fav_items) == 2
+    assert {i.site_id for i in fav_items} == {"site_fav_1", "site_fav_2"}
+
+    # 2. favorites_only=False (全講義)
+    all_items = await client.get_unread_forum_messages(favorites_only=False)
+    assert len(all_items) == 3
+
+    # 3. site_id 指定
+    single_item = await client.get_unread_forum_messages(site_id="site_fav_1")
+    assert len(single_item) == 1
+    assert single_item[0].site_id == "site_fav_1"
+    assert single_item[0].unread_messages_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_course_dashboard_includes_unread_forum_messages():
+    """get_course_dashboard が未読メッセージ・フォーラム数をダッシュボードに統合することを検証"""
+    from src.models import UnreadForumMessage
+
+    client = SakaiClient(host="tact.ac.thers.ac.jp")
+
+    client._resolve_site_context = AsyncMock(return_value=({"site_1": "Test Course"}, {}))
+    client.get_assignments = AsyncMock(return_value=[])
+    client.get_quizzes = AsyncMock(return_value=[])
+    client.get_announcements = AsyncMock(return_value=[])
+    client.get_course_materials = AsyncMock(return_value=[])
+    client.get_unread_forum_messages = AsyncMock(
+        return_value=[
+            UnreadForumMessage(
+                site_id="site_1",
+                site_name="Test Course",
+                unread_messages_count=3,
+                unread_forums_count=7,
+                message_url="https://tact.ac.thers.ac.jp/portal/directtool/msg-1",
+                forum_url="https://tact.ac.thers.ac.jp/portal/directtool/forum-1",
+            )
+        ]
+    )
+
+    dashboard = await client.get_course_dashboard(site_id="site_1")
+
+    assert dashboard.site_id == "site_1"
+    assert dashboard.site_name == "Test Course"
+    assert dashboard.unread_messages_count == 3
+    assert dashboard.unread_forums_count == 7
+    assert dashboard.message_url == "https://tact.ac.thers.ac.jp/portal/directtool/msg-1"
+    assert dashboard.forum_url == "https://tact.ac.thers.ac.jp/portal/directtool/forum-1"
+

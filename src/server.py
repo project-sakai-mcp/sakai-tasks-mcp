@@ -25,6 +25,7 @@ from src.models import (
     CourseMaterial,
     CourseSite,
     SakaiTask,
+    UnreadForumMessage,
 )
 from src.policy import (
     check_download_allowed_by_url,
@@ -34,7 +35,9 @@ from src.policy import (
     filter_courses,
     filter_dashboard,
     filter_tasks,
+    filter_unread_forum_messages,
 )
+
 
 SERVER_INSTRUCTIONS = """
 大学 LMS「Sakai (TACT)」から課題・小テスト・お知らせ・講義資料を安全に取得・管理するための MCP サーバーです。
@@ -73,7 +76,10 @@ SERVER_INSTRUCTIONS = """
 - 直近の課題・小テスト確認:
   個別ツール (`get_assignments`, `get_quizzes`, `get_calendar_events`) を個別に呼ぶのではなく、統合・締切ソート済みの集約ツール `get_upcoming_deadlines` を第一選択としてください。
 - 特定講義の総合確認:
-  課題・テスト・お知らせ・資料を一度に把握したい場合は、個別ツールを乱用せず、集約ツール `get_course_dashboard` を 1 回呼び出してください。個別ツールは「資料一覧だけ見たい」「お知らせだけ見たい」といった単一目的の場合のみ使用します。
+  課題・テスト・お知らせ・資料・未読メッセージを一度に把握したい場合は、個別ツールを乱用せず、集約ツール `get_course_dashboard` を 1 回呼び出してください。個別ツールは「資料一覧だけ見たい」「お知らせだけ見たい」「未読メッセージだけ見たい」といった単一目的の場合のみ使用します。
+- 未読メッセージ・フォーラム確認:
+  お知らせ (`get_announcements`) からは取得できない、講義内の個人宛メッセージや掲示板の未読投稿件数を確認する場合は `get_unread_messages_and_forums` を呼び出してください。
+
 
 【5. 並列呼び出し・バッチ処理の指針】
 - 本サーバーは内部で完全非同期 (asyncio)・Singleflight (同一リクエスト合流)・TTL キャッシュを備えており、高並行処理に最適化されています。
@@ -302,6 +308,25 @@ async def get_course_dashboard(
 
 
 @mcp.tool()
+async def get_unread_messages_and_forums(
+    site_id: str | None = None,
+    favorites_only: bool = True,
+) -> list[UnreadForumMessage]:
+    """
+    講義のメッセージツールおよびフォーラム（掲示板）ツールの未読件数と直通 Web URL 一覧を取得します。
+    お知らせ (announcements) では通知されない、個人宛メッセージや掲示板への新規投稿の有無を確認する際に使用します。
+
+    Args:
+        site_id: 特定の講義で絞り込む場合の講義サイト ID。
+        favorites_only: 原則としてデフォルトの True のまま呼び出してください。今学期履修中のお気に入り講義を対象とします。
+    """
+    client = get_client()
+    items = await client.get_unread_forum_messages(site_id=site_id, favorites_only=favorites_only)
+    return filter_unread_forum_messages(items)
+
+
+@mcp.tool()
+
 async def download_material(
     url: str,
     save_path: str,
