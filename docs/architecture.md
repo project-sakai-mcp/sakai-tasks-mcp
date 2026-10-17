@@ -939,7 +939,8 @@ def authenticate_via_webview(
     host: str = Config.SAKAI_HOST,
     profile_dir: Path = Config.WEBVIEW_DATA_DIR,
     initial_cookies: list[dict[str, Any]] | None = None,
-    auto_timeout_seconds: float = Config.WEBVIEW_AUTO_TIMEOUT
+    pause_duration_seconds: float = Config.WEBVIEW_URL_PAUSE_DURATION,
+    auto_timeout_seconds: float | None = None,
 ) -> list[dict[str, Any]]:
     """
     WebView を起動して Sakai ログインを実行し、全ドメインの Cookie リストを抽出して返す。
@@ -948,7 +949,8 @@ def authenticate_via_webview(
         host: Sakai ホスト名 (デフォルト: Config.SAKAI_HOST)
         profile_dir: WebView2 永続プロファイル保存ディレクトリ (デフォルト: Config.WEBVIEW_DATA_DIR)
         initial_cookies: 起動時に WebView へ一括注入する保存済み Cookie リスト (素通り用)
-        auto_timeout_seconds: 自動素通りの判定猶予秒数 (デフォルト: Config.WEBVIEW_AUTO_TIMEOUT)
+        pause_duration_seconds: URL 静止判定によるログイン画面表示猶予秒数 (デフォルト: Config.WEBVIEW_URL_PAUSE_DURATION)
+        auto_timeout_seconds: 旧パラメータ互換用 (指定時は pause_duration_seconds より優先)
 
     Returns:
         list[dict[str, Any]]: 全ドメインの Cookie 辞書リスト (name, value, domain, path, httponly, secure等)
@@ -972,11 +974,11 @@ def authenticate_via_webview(
    * 手動ログイン（スマートフォンでの 2 要素認証など）に 5 分以上要した場合、Microsoft 等の認証自体は成功してブラウザ内に認証 Cookie が保存されますが、前段の Shibboleth IdP におけるトランザクション有効期限（標準 300 秒 = 5 分）が切れることで `HTTP 500 (Stale Request)` エラー画面で停止します。
    * 外部 IdP ドメインにおいて `/POST/SSO` や `Stale Request` による停止を検知した場合、**1 回に限り自動で `window.load_url(f"https://{host}/portal/login")` を実行** します。
    * ブラウザ内にはすでに有効な IdP 認証 Cookie が保持されているため、2 度目はパスワードや MFA の入力をすべて省略して即座（約0.5秒）に Sakai の `/portal` へ遷移し、自動で Cookie を保存してウィンドウを破棄します。
-5. **単一ループによる表示切り替え**:
-   * **最初の `auto_timeout_seconds` 秒間（パターン A: 高速自動素通り）**:
-     * Cookie が有効であれば非表示のまま 0.5〜1 秒で `/portal` に着地し、画面を一切表示（チラつき）させずにウィンドウを即破棄。
-   * **`auto_timeout_seconds` 秒経過後（パターン B: 手動ログイン要求）**:
-     * 自動素通りできなかった場合は `window.show()` で画面を前面表示し、ユーザーの手動入力を受け付ける。
+5. **単一ループによる表示切り替え (URL静止判定)**:
+   * **高速自動素通り (パターン A)**:
+     * Cookie が有効であればリダイレクトが連続して発生し、URL静止判定時間（デフォルト 1.5 秒）を迎える前に `/portal` に着地するため、画面を一切表示（チラつき）させずにウィンドウを即破棄。
+   * **手動ログイン要求 (パターン B)**:
+     * ログイン画面で URL の変化が止まり、一定時間（`pause_duration_seconds`、デフォルト 1.5 秒）静止した段階で入力待ち状態と判定し、`window.show()` で画面を前面表示してユーザーの手動入力を受け付ける。
 6. **全ドメイン Cookie 抽出 (`window.get_cookies`)**:
    * ログイン完了時に `window.get_cookies()` を呼び出し、特定のドメインで絞り込まずに **全ドメインの Cookie リストをそのまま取得して返却** する（ドメイン抽出は `cookie_storage.py` の責務）。
 7. **ユーザーによる中断ハンドリング**:
@@ -999,7 +1001,8 @@ def authenticate_via_webview(
     host: str = Config.SAKAI_HOST,
     profile_dir: Path = Config.WEBVIEW_DATA_DIR,
     initial_cookies: list[dict[str, Any]] | None = None,
-    auto_timeout_seconds: float = Config.WEBVIEW_AUTO_TIMEOUT
+    pause_duration_seconds: float = Config.WEBVIEW_URL_PAUSE_DURATION,
+    auto_timeout_seconds: float | None = None,
 ) -> list[dict[str, Any]]:
     """
     WebView を起動して Sakai ログインを実行し、全ドメインの Cookie リストを抽出して返す。
@@ -1012,11 +1015,13 @@ def authenticate_via_webview(
         host: Sakai ホスト名 (デフォルト: Config.SAKAI_HOST)
         profile_dir: WebView2 永続プロファイル保存ディレクトリ (デフォルト: Config.WEBVIEW_DATA_DIR)
         initial_cookies: 起動時に WebView へ注入する保存済み Cookie リスト
-        auto_timeout_seconds: 自動素通りの判定猶予秒数 (デフォルト: Config.WEBVIEW_AUTO_TIMEOUT)
+        pause_duration_seconds: URL 静止判定によるログイン画面表示猶予秒数 (デフォルト: Config.WEBVIEW_URL_PAUSE_DURATION)
+        auto_timeout_seconds: 旧パラメータ互換用 (指定時は pause_duration_seconds より優先)
 
     Returns:
         list[dict[str, Any]]: 全ドメインの Cookie 辞書リスト。中断・失敗時は []
     """
+    pause_limit = auto_timeout_seconds if auto_timeout_seconds is not None else pause_duration_seconds
     cookies_result: list[dict[str, Any]] = []
 
     def is_login_success(url: str) -> bool:
@@ -1035,13 +1040,16 @@ def authenticate_via_webview(
 
     def watch_loop(window):
         nonlocal cookies_result
-        elapsed = 0.0
+        started_at = time.monotonic()
         shown = False
         retried_stale = False  # タイムアウト自動救済の一度きり実行フラグ (無限ループ防止)
+        last_url = None
+        last_url_changed_at = time.monotonic()
 
         while True:
             time.sleep(0.2)  # 200ms 周期で URL・タイトルのみ確認 (負荷 0)
-            elapsed += 0.2
+            now = time.monotonic()
+            elapsed = now - started_at
 
             url = window.get_current_url() or ""
             title = window.evaluate_js("document.title") or ""
@@ -1059,12 +1067,22 @@ def authenticate_via_webview(
                 retried_stale = True
                 time.sleep(0.5)
                 window.load_url(f"https://{host}/portal/login")
+                last_url = None
+                last_url_changed_at = time.monotonic()
                 continue
 
-            # 3. 自動素通りできず手動入力画面で待機中の場合はウィンドウを表示
-            if elapsed >= auto_timeout_seconds and not shown:
-                window.show()
-                shown = True
+            # 3. URL 変化監視 & 静止判定による画面表示 (リダイレクト停止検知)
+            if url:
+                if url != last_url:
+                    last_url = url
+                    last_url_changed_at = now
+                elif not shown:
+                    pause_duration = now - last_url_changed_at
+                    if pause_duration >= pause_limit:
+                        window.show()
+                        shown = True
+            else:
+                last_url_changed_at = now
 
             # 4. 安全のための放置防止最大タイムアウト
             if elapsed >= Config.AUTH_MAX_TIMEOUT:
@@ -3016,7 +3034,8 @@ class Config:
 
     AUTH_COOLDOWN_SECONDS: float = 3.0       # 認証失敗・キャンセル直後の連打防止クールダウン (秒)
     SESSION_CHECK_TIMEOUT: float = 5.0       # セッション確認 API タイムアウト (秒)
-    WEBVIEW_AUTO_TIMEOUT: float = 5.0        # WebView 自動素通り猶予秒数 (秒)
+    WEBVIEW_AUTO_TIMEOUT: float = 5.0        # WebView 自動素通り猶予秒数 (秒) (旧互換用)
+    WEBVIEW_URL_PAUSE_DURATION: float = 1.5  # URL静止判定によるログイン画面表示猶予秒数 (秒)
     AUTH_MAX_TIMEOUT: float = 300.0          # WebView ログイン待機最大タイムアウト (秒)
     WEBVIEW_WINDOW_WIDTH: int = 800          # ウィンドウ横幅 (px)
     WEBVIEW_WINDOW_HEIGHT: int = 600         # ウィンドウ高さ (px)

@@ -50,7 +50,8 @@ class Config:
 
     AUTH_COOLDOWN_SECONDS: float = 3.0       # 認証失敗・キャンセル直後の連打防止クールダウン (秒)
     SESSION_CHECK_TIMEOUT: float = 5.0       # セッション確認 API タイムアウト (秒)
-    WEBVIEW_AUTO_TIMEOUT: float = 5.0        # WebView 自動素通り猶予秒数 (秒)
+    WEBVIEW_AUTO_TIMEOUT: float = 5.0        # WebView 自動素通り猶予秒数 (秒) (旧互換用)
+    WEBVIEW_URL_PAUSE_DURATION: float = 1.5  # URL静止判定によるログイン画面表示猶予秒数 (秒)
     AUTH_MAX_TIMEOUT: float = 300.0          # WebView ログイン待機最大タイムアウト (秒)
     WEBVIEW_WINDOW_WIDTH: int = 800          # ウィンドウ横幅 (px)
     WEBVIEW_WINDOW_HEIGHT: int = 600         # ウィンドウ高さ (px)
