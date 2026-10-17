@@ -160,6 +160,11 @@ def authenticate_via_webview(
         while True:
             time.sleep(0.2)
 
+            # ユーザーがウィンドウを閉じたか検知 (pywebview イベント)
+            closed_event = getattr(getattr(window, "events", None), "closed", None)
+            if closed_event and hasattr(closed_event, "is_set") and closed_event.is_set() is True:
+                return
+
             now = time.monotonic()
             elapsed = now - started_at
 

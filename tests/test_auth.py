@@ -166,6 +166,70 @@ def test_user_closes_window_returns_empty():
     assert cookies == []
 
 
+def test_user_closes_window_via_closed_event_returns_empty():
+    """ユーザーが[✕]で閉じて events.closed がセットされた場合、即座に空リストが返ることを検証"""
+    mock_window = MagicMock()
+    mock_window.events.closed.is_set.return_value = True
+
+    with patch("webview.create_window", return_value=mock_window):
+        with patch("webview.start") as mock_start:
+            def run_watch_loop(func, window, **kwargs):
+                func(window)
+
+            mock_start.side_effect = run_watch_loop
+            with patch("time.sleep"):
+                cookies = authenticate_via_webview(host="tact.ac.thers.ac.jp")
+
+    assert cookies == []
+
+
+def test_temporary_none_or_empty_url_during_redirect_continues():
+    """リダイレクトの合間に一時的に URL が None や空文字になっても中断せず、最終ポータル到達で成功することを検証"""
+    mock_window = MagicMock()
+    mock_window.events.closed.is_set.return_value = False
+
+    # 1. ログイン画面
+    # 2. 静止して表示
+    # 3. 認証後のリダイレクトの隙間で一時的に None / ""
+    # 4. ポータルに着地
+    urls = (
+        ["https://tact.ac.thers.ac.jp/portal/login"] * 2
+        + ["https://idp.example.ac.jp/login"] * 3
+        + [None, "", "https://tact.ac.thers.ac.jp/portal"]
+    )
+    url_idx = 0
+
+    def get_url():
+        nonlocal url_idx
+        if url_idx < len(urls):
+            u = urls[url_idx]
+            url_idx += 1
+            return u
+        return urls[-1]
+
+    mock_window.get_current_url.side_effect = get_url
+    mock_window.evaluate_js.return_value = "Login"
+    mock_window.get_cookies.return_value = [{"name": "JSESSIONID", "value": "redirected_session"}]
+
+    time_ctrl = TimeController(start=100.0, step=1.0)
+
+    with patch("webview.create_window", return_value=mock_window):
+        with patch("webview.start") as mock_start:
+            def run_watch_loop(func, window, **kwargs):
+                func(window)
+
+            mock_start.side_effect = run_watch_loop
+            with patch("time.sleep"):
+                with patch("time.monotonic", side_effect=time_ctrl.monotonic):
+                    cookies = authenticate_via_webview(host="tact.ac.thers.ac.jp", pause_duration_seconds=1.5)
+
+    assert len(cookies) == 1
+    assert cookies[0]["name"] == "JSESSIONID"
+    assert mock_window.show.call_count == 1
+
+
+
+
 def test_stale_or_idp_error_recovery():
     """IdP Stale Request 発生時に window.load_url(login_url) が呼ばれリトライされることを検証"""
     mock_window = MagicMock()
