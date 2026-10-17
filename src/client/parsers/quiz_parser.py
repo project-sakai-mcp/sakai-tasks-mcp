@@ -1,6 +1,6 @@
 """Quiz / Assessment parser from Sakai SAMIGO /direct/sam_pub/context/{siteId}.json."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.client import endpoints
@@ -35,7 +35,7 @@ def parse_quizzes(
         collection = data.get("sam_pub_collection", [])
 
     tasks: list[SakaiTask] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for item in collection:
         # 非公開・下書き (status == "0") は除外

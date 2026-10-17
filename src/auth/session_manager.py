@@ -1,12 +1,12 @@
 import asyncio
 import logging
 import os
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
-from src.config import Config
 from src.auth import cookie_storage, session_checker
+from src.config import Config
 
 logger = logging.getLogger(__name__)
 

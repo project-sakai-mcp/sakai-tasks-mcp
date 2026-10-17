@@ -1,7 +1,7 @@
 import html
 import re
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.models import Attachment
@@ -24,8 +24,8 @@ def parse_datetime(raw: Any) -> datetime | None:
 
     if isinstance(raw, datetime):
         if raw.tzinfo is None:
-            return raw.replace(tzinfo=timezone.utc)
-        return raw.astimezone(timezone.utc)
+            return raw.replace(tzinfo=UTC)
+        return raw.astimezone(UTC)
 
     # 1. 辞書形式: {'epochSecond': 1712000000, 'nano': 0}
     if isinstance(raw, dict):
@@ -33,7 +33,7 @@ def parse_datetime(raw: Any) -> datetime | None:
             try:
                 sec = float(raw["epochSecond"])
                 nano = float(raw.get("nano") or 0.0)
-                return datetime.fromtimestamp(sec + nano / 1e9, tz=timezone.utc)
+                return datetime.fromtimestamp(sec + nano / 1e9, tz=UTC)
             except (ValueError, TypeError, OverflowError, OSError):
                 return None
         return None
@@ -44,9 +44,9 @@ def parse_datetime(raw: Any) -> datetime | None:
             val = float(raw)
             # 10^11 以上の場合はミリ秒数値と判定 (10^11 ms ≒ 1973年)
             if abs(val) >= 1e11:
-                return datetime.fromtimestamp(val / 1000.0, tz=timezone.utc)
+                return datetime.fromtimestamp(val / 1000.0, tz=UTC)
             else:
-                return datetime.fromtimestamp(val, tz=timezone.utc)
+                return datetime.fromtimestamp(val, tz=UTC)
         except (ValueError, TypeError, OverflowError, OSError):
             return None
 
@@ -60,7 +60,7 @@ def parse_datetime(raw: Any) -> datetime | None:
         if len(raw_str) == 8 and raw_str.isdigit():
             try:
                 dt = datetime.strptime(raw_str, "%Y%m%d")
-                return dt.replace(tzinfo=timezone.utc)
+                return dt.replace(tzinfo=UTC)
             except ValueError:
                 return None
 
@@ -68,7 +68,7 @@ def parse_datetime(raw: Any) -> datetime | None:
         if len(raw_str) == 14 and raw_str.isdigit():
             try:
                 dt = datetime.strptime(raw_str, "%Y%m%d%H%M%S")
-                return dt.replace(tzinfo=timezone.utc)
+                return dt.replace(tzinfo=UTC)
             except ValueError:
                 return None
 
@@ -77,7 +77,7 @@ def parse_datetime(raw: Any) -> datetime | None:
             try:
                 # %f はマイクロ秒(6桁)のため、ミリ秒3桁の後ろに000を補完してパース
                 dt = datetime.strptime(raw_str + "000", "%Y%m%d%H%M%S%f")
-                return dt.replace(tzinfo=timezone.utc)
+                return dt.replace(tzinfo=UTC)
             except ValueError:
                 return None
 
@@ -85,9 +85,9 @@ def parse_datetime(raw: Any) -> datetime | None:
         try:
             val = float(raw_str)
             if abs(val) >= 1e11:
-                return datetime.fromtimestamp(val / 1000.0, tz=timezone.utc)
+                return datetime.fromtimestamp(val / 1000.0, tz=UTC)
             else:
-                return datetime.fromtimestamp(val, tz=timezone.utc)
+                return datetime.fromtimestamp(val, tz=UTC)
         except (ValueError, OverflowError):
             pass
 
@@ -96,8 +96,8 @@ def parse_datetime(raw: Any) -> datetime | None:
             iso_str = raw_str.replace("Z", "+00:00")
             dt = datetime.fromisoformat(iso_str)
             if dt.tzinfo is None:
-                return dt.replace(tzinfo=timezone.utc)
-            return dt.astimezone(timezone.utc)
+                return dt.replace(tzinfo=UTC)
+            return dt.astimezone(UTC)
         except (ValueError, TypeError):
             pass
 

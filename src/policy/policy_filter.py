@@ -14,7 +14,6 @@ from src.models import (
     UnreadForumMessage,
 )
 
-
 MASKED_INSTRUCTION_TEXT = "[講義ポリシー (SCHEDULE_ONLY) により指示文は非表示です]"
 MASKED_ANNOUNCEMENT_TEXT = "[講義ポリシー (SCHEDULE_ONLY) により本文は非表示です]"
 

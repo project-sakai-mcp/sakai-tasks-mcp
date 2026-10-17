@@ -1,6 +1,7 @@
 """JS communication bridge module for pywebview."""
 
 from typing import Any
+
 from src.config import AIPolicyMode, AppConfigData, Config
 from src.gui.data_builder import SettingsUIData
 

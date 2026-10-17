@@ -1,11 +1,11 @@
 """Unit tests for settings and initial setup flows."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
+
+import pytest
 
 from src.config import AppConfigData, Config
-from src.server import get_client, check_auth_status
+from src.server import check_auth_status, get_client
 
 
 def test_config_default_host_is_empty():

@@ -2,12 +2,13 @@
 
 import json
 from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from src.config import AIPolicyMode, AppConfigData, Config
+from src.gui import settings_window
 from src.gui.api import SettingsApi
 from src.gui.data_builder import CourseSettingItem, SettingsUIData
-from src.gui import settings_window
 
 
 def test_config_atomic_save(tmp_path, monkeypatch):
@@ -33,7 +34,7 @@ def test_config_atomic_save(tmp_path, monkeypatch):
     assert config_file.exists()
     assert not tmp_file.exists(), "一時ファイル .tmp が残存してはいけない"
 
-    with open(config_file, "r", encoding="utf-8") as f:
+    with open(config_file, encoding="utf-8") as f:
         saved_dict = json.load(f)
     assert saved_dict["sakai_host"] == "tact.ac.thers.ac.jp"
     assert saved_dict["policies"]["course_1"] == "allow_all"

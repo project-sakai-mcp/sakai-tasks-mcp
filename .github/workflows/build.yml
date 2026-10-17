@@ -1,0 +1,108 @@
+name: Build Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Create a GitHub Release and attach artifacts?"
+        type: boolean
+        default: false
+      tag_name:
+        description: "Release tag (e.g. v0.1.0). Required if create_release is true."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows Package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Windows build script
+        run: python scripts/build_windows.py
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakai-tasks-mcp-windows
+          path: dist/sakai-tasks-mcp-windows.zip
+          retention-days: 90
+
+  build-macos:
+    name: Build macOS Package
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run macOS build script
+        run: python scripts/build_macos.py
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakai-tasks-mcp-macos
+          path: dist/sakai-tasks-mcp-macos.tar.gz
+          retention-days: 90
+
+  release:
+    name: Create GitHub Release
+    needs: [build-windows, build-macos]
+    if: ${{ inputs.create_release }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Validate tag input
+        run: |
+          if [ -z "${{ inputs.tag_name }}" ]; then
+            echo "Error: tag_name must not be empty when create_release is true."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create Release and Upload Assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ inputs.tag_name }}" \
+            release-assets/sakai-tasks-mcp-windows.zip \
+            release-assets/sakai-tasks-mcp-macos.tar.gz \
+            --title "Release ${{ inputs.tag_name }}" \
+            --generate-notes

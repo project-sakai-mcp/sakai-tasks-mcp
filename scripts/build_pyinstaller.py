@@ -4,7 +4,6 @@ PyInstaller による単一実行可能ファイル作成スクリプト
 docs/architecture.md 7.1.4 に準拠
 """
 
-import os
 import shutil
 import subprocess
 import sys

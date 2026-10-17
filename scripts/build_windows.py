@@ -5,7 +5,6 @@ uv を使用して高速かつ最小限の構成でポータブルパッケー�
 docs/architecture.md 7.1.2 に準拠
 """
 
-import os
 import shutil
 import subprocess
 import sys
