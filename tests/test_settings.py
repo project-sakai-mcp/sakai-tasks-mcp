@@ -71,3 +71,27 @@ def test_show_settings_window_opens_directly(monkeypatch, tmp_path):
                 mock_create_window.assert_called_once()
                 mock_start.assert_called_once()
 
+
+@pytest.mark.asyncio
+async def test_build_settings_ui_data_falls_back_on_course_retrieval_error(monkeypatch, tmp_path):
+    """講義一覧の取得が例外(接続エラーやログインキャンセル等)で失敗しても、空の講義一覧でUIデータが返ることを検証"""
+    from src.gui.data_builder import build_settings_ui_data
+
+    test_config_path = tmp_path / "config.json"
+    monkeypatch.setattr(Config, "APP_DATA_DIR", tmp_path)
+    monkeypatch.setattr(Config, "CONFIG_FILE_PATH", test_config_path)
+    Config.save(AppConfigData(sakai_host="invalid.example.ac.jp"))
+
+    mock_client = AsyncMock()
+    mock_client.get_courses.side_effect = RuntimeError("WebView login cancelled or network error")
+    mock_client_cls = MagicMock()
+    mock_client_cls.return_value.__aenter__.return_value = mock_client
+
+    with patch("src.gui.data_builder.SakaiClient", mock_client_cls):
+        ui_data = await build_settings_ui_data()
+
+    assert ui_data.sakai_host == "invalid.example.ac.jp"
+    assert ui_data.courses == []
+
+
+

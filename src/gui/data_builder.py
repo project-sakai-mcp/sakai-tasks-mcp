@@ -1,9 +1,13 @@
 """UI data builder module for Sakai settings."""
 
+import logging
+
 from pydantic import BaseModel
 
 from src.client.sakai_client import SakaiClient
 from src.config import AIPolicyMode, Config
+
+logger = logging.getLogger(__name__)
 
 
 class CourseSettingItem(BaseModel):
@@ -28,40 +32,34 @@ async def build_settings_ui_data() -> SettingsUIData:
     """
     Sakai から全講義一覧を取得し、既存の config.json とマージして
     UI 用データ (SettingsUIData) を構築する。
-    sakai_host が未設定の場合は SakaiClient の呼び出しをスキップする。
+    sakai_host が未設定の場合や接続エラー時は空の講義一覧で安全に返却する。
     """
     # 1. 現在の config.json をロード
     config = Config.load()
 
-    # 2. sakai_host が未設定の場合は講義一覧取得をスキップして即座に返却
-    if not config.sakai_host:
-        return SettingsUIData(
-            sakai_host="",
-            presets=Config.UNIVERSITY_PRESETS,
-            default_deadline_days=config.default_deadline_days,
-            default_announcement_limit=config.default_announcement_limit,
-            request_timeout=config.request_timeout,
-            courses=[],
-        )
-
-    # 3. 講義一覧とお気に入り情報を SakaiClient から取得 (未ログインなら自動ログイン)
-    async with SakaiClient() as client:
-        courses = await client.get_courses(favorites_only=False)
+    # 2. ホスト設定がある場合のみ講義一覧取得を試みる (未設定時・失敗時は空のまま安全に続行)
+    courses = []
+    if config.sakai_host:
+        try:
+            async with SakaiClient() as client:
+                courses = await client.get_courses(favorites_only=False)
+        except Exception as e:
+            logger.warning(
+                "講義一覧の取得をスキップしました (ドメイン未設定、接続エラー、または認証失敗): %s",
+                e,
+            )
 
     # 3. 講義データと既存ポリシーをマージ (お気に入り講義を先頭にソート)
-    course_items = []
     sorted_courses = sorted(courses, key=lambda c: (not c.is_favorite, c.name))
-    for c in sorted_courses:
-        # 未設定時は Config.DEFAULT_POLICY (TEXT_ONLY: 強) を適用
-        policy = config.policies.get(c.id, Config.DEFAULT_POLICY)
-        course_items.append(
-            CourseSettingItem(
-                id=c.id,
-                title=c.name,
-                is_favorite=c.is_favorite,
-                current_policy=policy,
-            )
+    course_items = [
+        CourseSettingItem(
+            id=c.id,
+            title=c.name,
+            is_favorite=c.is_favorite,
+            current_policy=config.policies.get(c.id, Config.DEFAULT_POLICY),
         )
+        for c in sorted_courses
+    ]
 
     return SettingsUIData(
         sakai_host=config.sakai_host,

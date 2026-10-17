@@ -1,7 +1,6 @@
 """Window launch and lifecycle management module for settings GUI."""
 
 import asyncio
-import sys
 from pathlib import Path
 
 import webview
@@ -20,12 +19,8 @@ def show_settings_window() -> None:
     """
     template_path = Path(__file__).parent / "templates" / "settings.html"
 
-    # 1. UI データの事前構築 (未設定時は空の講義一覧が返る)
-    try:
-        ui_data = asyncio.run(build_settings_ui_data())
-    except Exception as e:
-        print(f"設定データの読み込みに失敗しました: {e}", file=sys.stderr)
-        return
+    # 1. UI データの事前構築 (未設定時や通信失敗時も data_builder が安全に返却)
+    ui_data = asyncio.run(build_settings_ui_data())
 
     # 2. JS 通信ブリッジを初期化
     api = SettingsApi(initial_data=ui_data)
